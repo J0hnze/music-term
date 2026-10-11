@@ -13,6 +13,12 @@ sudo apt update
 sudo apt install python3 mpv ffmpeg pulseaudio-utils
 ```
 
+Or on MacOS: 
+```sh
+brew update
+brew install python mpv ffmpeg 
+```
+
 Install uv if needed using the [official uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
 Then open the project directory and install its locked dependencies:
 
