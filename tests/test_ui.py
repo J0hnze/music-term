@@ -1,0 +1,225 @@
+import pytest
+from unittest.mock import AsyncMock
+from textual.widgets import Input, DataTable, Select
+from music_term.ui import MusicApp, EQModal, AuthModal
+from music_term.queue import Track
+
+@pytest.fixture(autouse=True)
+def offline_account(monkeypatch, tmp_path):
+    monkeypatch.setattr('music_term.state.playlist_path', lambda: tmp_path / 'tmp' / 'playlist.json')
+    monkeypatch.setattr('music_term.ui.MusicService.account_name', lambda self: None)
+    monkeypatch.setattr('music_term.ui.AudioMonitor.start', AsyncMock())
+
+async def test_keyboard_search_queue_and_modals(monkeypatch):
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    app.service.search = lambda query: [Track('Test song', 'Artist', '/test.wav')]
+    app.player.command = AsyncMock(return_value=None)
+    async with app.run_test(size=(100, 35)) as pilot:
+        await pilot.click('#search')
+        await pilot.press('t', 'e', 's', 't', 'enter')
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        assert app.query_one('#results', DataTable).row_count == 1
+        await pilot.press('a')
+        assert len(app.queue.tracks) == 1
+        await pilot.press('e')
+        await pilot.pause()
+        assert isinstance(app.screen, EQModal)
+        app.screen.query_one('#gain-0', Select).value = 4
+        await pilot.pause()
+        assert app.eq.gains[0] == 4
+        await pilot.press('escape', 'l')
+        await pilot.pause()
+        assert isinstance(app.screen, AuthModal)
+        assert app.screen.query_one('#headers-raw', Input).password
+        await pilot.press('escape')
+
+async def test_resize_and_shutdown(monkeypatch):
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    app.player.close = AsyncMock()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press('escape', 'e')
+        await pilot.pause()
+        await pilot.resize_terminal(60, 18)
+        await pilot.pause()
+        assert isinstance(app.screen, EQModal)
+        await pilot.press('escape')
+    app.player.close.assert_awaited_once()
+
+async def test_playback_controls_and_eof(monkeypatch):
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    track = Track('Local', 'Artist', '/fake.wav')
+    app.queue.add(track)
+    app.service.resolve = lambda track: (track.source, {})
+    app.player.load = AsyncMock()
+    app.player.command = AsyncMock(return_value=None)
+    async with app.run_test() as pilot:
+        await pilot.press('escape', 'n')
+        await app.workers.wait_for_complete()
+        assert app.current == track
+        app.player.load.assert_awaited_once_with('/fake.wav', {})
+        await pilot.press('space', '+', '-')
+        assert app.volume == 70
+        assert any(call.args == ('cycle', 'pause') for call in app.player.command.call_args_list)
+        app.player.writer = object()
+        await app.player.events.put({'event': 'end-file', 'reason': 'eof'})
+        await app.poll()
+        assert app.queue.index == 0
+        app.player.writer = None
+
+async def test_multiline_masked_header_paste(monkeypatch, tmp_path):
+    from textual import events
+    from textual.widgets import Button
+    from music_term.ui import HeaderPasteInput
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path))
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    async with app.run_test(size=(100, 50)) as pilot:
+        await pilot.press('escape', 'l')
+        await pilot.pause()
+        modal = app.screen
+        field = modal.query_one('#headers-raw', HeaderPasteInput)
+        raw = (" " + chr(92) + "\n").join([
+            "curl 'https://music.youtube.com/youtubei/v1/browse'",
+            "-H 'cookie: FAKE_TEST_ONLY'",
+            "-H 'authorization: SAPISIDHASH FAKE_TEST_ONLY'",
+            "-H 'x-goog-authuser: 0'",
+        ])
+        field.post_message(events.Paste(raw))
+        await pilot.pause()
+        assert field.raw_headers == raw and field.password
+        assert 'FAKE_TEST_ONLY' not in field.value
+        await modal.on_button_pressed(Button.Pressed(modal.query_one('#import-headers')))
+        assert app.credentials.path('browser') is not None
+        assert field.raw_headers == '' and field.value == ''
+        assert {button.id for button in modal.query(Button)} == {'import-headers', 'disconnect', 'close'}
+        await modal.on_button_pressed(Button.Pressed(modal.query_one('#disconnect')))
+        assert app.credentials.path('browser') is None
+
+
+async def test_account_banner(monkeypatch):
+    from textual.widgets import Static
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    app.service.account_name = lambda: 'Sample User'
+    async with app.run_test(size=(80, 24)):
+        await app.workers.wait_for_complete()
+        banner = app.query_one('#account', Static)
+        assert str(banner.content) == 'Logged in as: Sample User'
+        app.service.account_name = lambda: None
+        app.refresh_account()
+        await app.workers.wait_for_complete()
+        assert str(banner.content) == 'Not logged in'
+        def failure(): raise RuntimeError('offline')
+        app.service.account_name = failure
+        app.refresh_account()
+        await app.workers.wait_for_complete()
+        assert str(banner.content) == 'Login unverified • press l'
+
+
+async def test_add_album_from_song_and_album_search(monkeypatch):
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    tracks = [Track('First', 'Artist', '/first'), Track('Second', 'Artist', '/second')]
+    app.service.album_tracks = lambda album_id: tracks
+    app.results = [Track('Song', 'Artist', '/song', 'MPREtest')]
+    async with app.run_test() as pilot:
+        app.query_one('#results', DataTable).add_row('Song', 'Artist')
+        await pilot.press('escape', 'b')
+        await app.workers.wait_for_complete()
+        assert app.queue.tracks == tracks
+        app.results = [Track('Album', 'Artist', '', 'MPREtest', True)]
+        app.action_add()
+        await app.workers.wait_for_complete()
+        assert app.queue.tracks == tracks + tracks
+        assert not any(track.is_album for track in app.queue.tracks)
+
+async def test_eq_uses_mpv_filter_string_and_meter_pause(monkeypatch):
+    from music_term.spectrum import Spectrum
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    app.player.command = AsyncMock()
+    async with app.run_test(size=(80, 24)):
+        await app.apply_eq()
+        assert isinstance(app.player.command.call_args.args[2], str)
+        app.eq.bypass = True
+        await app.apply_eq()
+        assert app.player.command.call_args.args == ('set_property', 'af', '')
+        app.monitor.message = ''
+        app.monitor.levels = [1.0] * 10
+        app.playback_active = True
+        app.render_spectrum()
+        meter = app.query_one('#spectrum', Spectrum)
+        assert '█' in meter.content.plain
+        app.playback_paused = True
+        app.render_spectrum()
+        assert '█' not in meter.content.plain
+
+async def test_beta_layout_album_preview_and_track_play(monkeypatch):
+    from io import BytesIO
+    from PIL import Image
+    from textual.widgets import Static
+    from music_term.artwork import Artwork
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    image = BytesIO()
+    Image.new('RGB', (100, 100), (70, 130, 180)).save(image, 'PNG')
+    monkeypatch.setattr('music_term.ui.fetch_artwork', lambda track: image.getvalue())
+    app = MusicApp()
+    tracks = [Track('First', 'Artist', '/first', 'MPREtest', album_title='Album'),
+              Track('Second', 'Artist', '/second', 'MPREtest', album_title='Album')]
+    app.service.album_tracks = lambda album_id: tracks
+    app.service.resolve = lambda track: (track.source, {})
+    app.player.load = AsyncMock()
+    app.player.command = AsyncMock(return_value=None)
+    async with app.run_test(size=(140, 45)) as pilot:
+        app.results = [Track('Album', 'Artist', '', 'MPREtest', True)]
+        app.query_one('#results', DataTable).add_row('Album', 'Artist')
+        await pilot.pause(0.4)
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert app.query_one('#album-tracks', DataTable).row_count == 2
+        assert str(app.query_one('#album-title', Static).content) == 'Album — Artist'
+        for size in [(140, 45), (80, 24)]:
+            await pilot.resize_terminal(*size)
+            await pilot.pause()
+            left = app.query_one('#library').region
+            right = app.query_one('#album-panel').region
+            meter = app.query_one('#spectrum').region
+            assert left.right <= right.x and left.y == right.y
+            assert meter.y >= left.bottom and meter.width >= left.width + right.width
+            assert meter.bottom <= app.query_one('#now').region.y
+            art = app.query_one('#artwork', Artwork)
+            rendered = art.render()
+            assert rendered.plain.count('▀') > 0
+            assert len(rendered.plain.splitlines()) <= art.content_size.height
+        app.query_one('#album-tracks', DataTable).focus()
+        await pilot.press('enter')
+        await app.workers.wait_for_complete()
+        assert app.current == tracks[0]
+        assert app.queue.tracks == [tracks[0]]
+
+async def test_shuffle_repeat_density_and_space_restore(monkeypatch):
+    from music_term.state import save_playlist
+    from music_term.queue import Queue
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    tracks = [Track('Saved', 'Artist', '/saved')]
+    save_playlist(Queue(tracks=tracks, index=0))
+    app = MusicApp()
+    app.service.resolve = lambda track: (track.source, {})
+    app.player.load = AsyncMock()
+    app.player.command = AsyncMock()
+    async with app.run_test(size=(100, 35)) as pilot:
+        assert app.queue.tracks == tracks and app.current is None
+        await pilot.press('escape', 's', 'r', 'f6', 'f6', 'f5', 'space')
+        await pilot.pause(.3)
+        await app.workers.wait_for_complete()
+        assert app.queue.shuffle and app.queue.repeat == 'one'
+        assert app.monitor.bar_count == 20
+        assert app.current == tracks[0] and 'Saved' in app.title
+        await pilot.press('space')
+        assert app.playback_paused
+        await pilot.press('space')
+        assert not app.playback_paused

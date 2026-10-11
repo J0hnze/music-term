@@ -1,0 +1,57 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+*.log
+browser.json
+cookies*.txt
+
+# Private local state, copied sessions and secrets
+/tmp/
+/work/
+/outputs/
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
+login-*/
+*cookie*
+*credentials*
+*password*
+*username*
+*token*.json
+*session*.json
+*headers*.json
+*auth*.json
+*.pem
+*.key
+*.p12
+*.pfx
+curl*.txt
+clipboard*.txt
+Pasted text.txt
+
+# Tooling, editor and OS files
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.zip
+*.sqlite*
+*.sock
+.vscode/
+.idea/
+.DS_Store
+
+# Machine-local account/tool settings
+.aws/
+.codex/
+.agents/
+*headers*.txt
+*curl*.txt
+*.curl
+*.har
+*.http
