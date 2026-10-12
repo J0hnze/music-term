@@ -61,3 +61,24 @@ thread with a UI timeout; no live account request was made during tests.
 - Recursive audio scanning, case-insensitive multiword search and invalid folders tested.
 - Ctrl+M/Ctrl+O folder selection, local playback and playlist preservation tested.
 - uv.lock generated; locked dev environment and CLI checked with uv.
+
+## Windows setup via WSL2 — 12 October 2026
+
+- Added setup.bat/start.bat, windows.ps1 and tools/windows-wsl.sh for WSL2 Ubuntu, with optional distribution selection and development dependencies.
+- PowerShell parser and Ubuntu bash -n syntax checks passed. Invoked the check launcher and verified its setup-required failure and exit code before installation.
+- Checked shell LF line endings and the source archive allowlist, which now includes Windows setup files. git diff --check passed.
+- Setup installation, WSLg audio playback, output-monitor spectrum and live YouTube playback were not exercised. Native Windows mpv IPC remains unimplemented; the supported setup path is Linux inside WSL2.
+
+## Side-by-side album preview and graphics — 12 October 2026
+
+- John confirmed the WSL Windows setup works and uses Windows Terminal.
+- Album artwork and album tracks now share a horizontal row; album panel receives two-thirds of the workspace.
+- Added pre-UI automatic Sixel/Kitty detection using textual-image on Python 3.12+, explicit renderer options and portable half-block fallback. Windows launcher forwards the renderer into WSL.
+- Improved block downsampling with Lanczos/EXIF orientation, raised resolution cap and selected the largest supplied thumbnail by dimensions.
+- 36 offline tests passed, including 140x45/80x24 side-by-side bounds, graphics widget update/clear/fallback with a test double, thumbnail choice and odd-height rendering. CLI help, PowerShell/Bash syntax and whitespace checks passed.
+- Actual Sixel/Kitty display was not visually verified. Runtime terminal capability detection happens before the Textual input thread starts.
+
+## Spectrum title and volume bar
+
+- Spectrum heading centred; responsive rainbow player-volume bar added below it. +/− updates the bar immediately.
+- Eleven UI tests passed, covering title positioning, gradient, 0/100 percent volume, keyboard updates and 80x24/140x45 resizing.

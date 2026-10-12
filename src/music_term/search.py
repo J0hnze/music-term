@@ -5,6 +5,15 @@ from yt_dlp import YoutubeDL
 from .auth import Credentials
 from .queue import Track
 
+def largest_thumbnail(thumbnails: list[dict]) -> str | None:
+    """Choose the highest-resolution supplied URL, regardless of API ordering."""
+    candidates = [item for item in thumbnails if isinstance(item, dict) and isinstance(item.get('url'), str) and item['url']]
+    def area(item):
+        width, height = item.get('width', 0), item.get('height', 0)
+        return width * height if isinstance(width, (int, float)) and isinstance(height, (int, float)) and width > 0 and height > 0 else 0
+    return max(reversed(candidates), key=area)['url'] if candidates else None
+
+
 class QuietLogger:
     def debug(self, message: str) -> None: pass
     def warning(self, message: str) -> None: pass
@@ -42,9 +51,9 @@ class MusicService:
             results = client.search(query, filter=mode, limit=30)
             if mode == "albums":
                 return [Track(r.get("title", "Unknown album"), ", ".join(a.get("name", "") for a in r.get("artists", [])),
-                              "", r["browseId"], True, (r.get("thumbnails") or [{}])[-1].get("url")) for r in results if r.get("browseId")]
+                              "", r["browseId"], True, largest_thumbnail(r.get("thumbnails") or [])) for r in results if r.get("browseId")]
             return [Track(r.get("title", "Unknown"), ", ".join(a.get("name", "") for a in r.get("artists", [])),
-                          "https://music.youtube.com/watch?v=" + r["videoId"], (r.get("album") or {}).get("id"), False, (r.get("thumbnails") or [{}])[-1].get("url"), (r.get("album") or {}).get("name"))
+                          "https://music.youtube.com/watch?v=" + r["videoId"], (r.get("album") or {}).get("id"), False, largest_thumbnail(r.get("thumbnails") or []), (r.get("album") or {}).get("name"))
                     for r in results if r.get("videoId")]
         except Exception:
             raise RuntimeError("Search failed. Check network; paste a fresh signed-in browse cURL request or Disconnect. Try a URL/local path.") from None
@@ -58,7 +67,7 @@ class MusicService:
             tracks = [Track(r.get("title", "Unknown"),
                             ", ".join(a.get("name", "") for a in r.get("artists", [])) or artist,
                             "https://music.youtube.com/watch?v=" + r["videoId"], album_id, False,
-                            (r.get("thumbnails") or album.get("thumbnails") or [{}])[-1].get("url"), album.get("title"))
+                            largest_thumbnail((r.get("thumbnails") or []) + (album.get("thumbnails") or [])), album.get("title"))
                       for r in album.get("tracks", []) if r.get("videoId") and r.get("isAvailable", True)]
             if not tracks:
                 raise ValueError()

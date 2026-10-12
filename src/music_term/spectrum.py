@@ -1,5 +1,6 @@
 """Real output-monitor spectrum; PCM is analyzed in memory and never saved."""
 import asyncio
+import colorsys
 import shutil
 import numpy as np
 from rich.text import Text
@@ -31,8 +32,8 @@ def analyze(pcm: bytes, bars: int = 10) -> list[float]:
 
 class AudioMonitor:
     def __init__(self) -> None:
-        self.bar_count = 10
-        self.levels = [0.0] * 10
+        self.bar_count = 50
+        self.levels = [0.0] * self.bar_count
         self.message = 'Starting audio spectrum…'
         self.process: asyncio.subprocess.Process | None = None
         self.task: asyncio.Task | None = None
@@ -90,7 +91,12 @@ class Spectrum(Static):
     """Centred spectrum meter; width follows terminal resizing."""
     def show_levels(self, levels: list[float], message: str = '', active: bool = True) -> None:
         if message:
-            self.update(Text(message, style='dim'))
+            heading = Text('Audio spectrum', style='cyan')
+            heading.truncate(self.content_size.width)
+            output = Text(' ' * max(0, (self.content_size.width - heading.cell_len) // 2))
+            output.append_text(heading)
+            output.append('\n' + message, style='dim')
+            self.update(output)
             return
         count = max(1, min(len(levels), self.content_size.width))
         if count < len(levels):
@@ -99,8 +105,10 @@ class Spectrum(Static):
         left_padding = (self.content_size.width - count * width) // 2
         rows = max(1, self.content_size.height - 2)
         heights = [round(max(0.0, min(1.0, level)) * rows) if active else 0 for level in levels]
-        output = Text(f'Audio spectrum • {len(levels)} bars • F5 − / F6 + • e: EQ', style='cyan')
-        output.truncate(self.content_size.width)
+        heading = Text(f'Audio spectrum • {len(levels)} bars • F5 − / F6 + • e: EQ', style='cyan')
+        heading.truncate(self.content_size.width)
+        output = Text(' ' * max(0, (self.content_size.width - heading.cell_len) // 2))
+        output.append_text(heading)
         output.append('\n')
         gap = 1 if width > 1 else 0
         for row in range(rows, 0, -1):
@@ -120,3 +128,26 @@ class Spectrum(Static):
             label = str(hz) if hz < 1000 else f'{hz // 1000}k'
             output.append(label[:width].center(width), style='dim')
         self.update(output)
+
+
+class VolumeBar(Static):
+    """Rainbow fill represents the player's volume setting, not measured audio."""
+    def __init__(self, volume: int = 70, **kwargs):
+        super().__init__(**kwargs)
+        self.volume = volume
+
+    def show_volume(self, volume: int) -> None:
+        self.volume = max(0, min(100, volume))
+        self.refresh()
+
+    def render(self) -> Text:
+        available = max(1, self.content_size.width)
+        label = Text(f'Volume {self.volume:3d}%  ', style='bold cyan')
+        label.truncate(available)
+        width = max(0, available - label.cell_len)
+        filled = round(width * self.volume / 100)
+        for index in range(width):
+            red, green, blue = colorsys.hsv_to_rgb(index / max(1, width - 1) * .8, 1, 1)
+            color = f'#{round(red * 255):02x}{round(green * 255):02x}{round(blue * 255):02x}'
+            label.append('█' if index < filled else '░', style=color if index < filled else '#394554')
+        return label

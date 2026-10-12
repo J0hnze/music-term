@@ -6,6 +6,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = [
+    '.gitattributes', 'windows.ps1', 'setup.bat', 'start.bat', 'tools/windows-wsl.sh',
     '.gitignore', 'uv.lock', 'pyproject.toml', 'README.md', 'LICENSE', 'VERIFICATION.md',
     'src/music_term/__init__.py', 'src/music_term/__main__.py',
     'src/music_term/local.py', 'src/music_term/state.py', 'src/music_term/terminal.py', 'src/music_term/auth.py', 'src/music_term/eq.py', 'src/music_term/player.py',

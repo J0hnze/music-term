@@ -14,7 +14,7 @@ from .queue import Queue, Track
 from .state import load_playlist, save_playlist
 from .terminal import window_title
 from .search import MusicService
-from .spectrum import AudioMonitor, Spectrum
+from .spectrum import AudioMonitor, Spectrum, VolumeBar
 from .artwork import Artwork, fetch_artwork
 
 class HeaderPasteInput(Input):
@@ -164,14 +164,17 @@ class MusicApp(App):
     #search { width: 1fr; }
     #workspace { height: 3fr; min-height: 10; }
     #library { width: 1fr; border: solid $primary; }
-    #album-panel { width: 1fr; border: solid $secondary; }
+    #album-panel { width: 2fr; border: solid $secondary; }
     #album-title { height: auto; max-height: 3; padding: 0 1; }
-    #artwork { height: 1fr; min-height: 3; content-align: center middle; }
+    #album-content { height: 1fr; }
+    #artwork { width: 3fr; height: 100%; min-height: 3; content-align: center middle; align: center middle; }
+    #artwork-image { width: auto; height: auto; max-width: 100%; max-height: 100%; }
     #spectrum { height: 1fr; min-height: 6; width: 100%; border: solid $success; padding: 0 1; }
     DataTable { width: 100%; height: 1fr; }
     #results { height: 2fr; }
     #queue { height: 1fr; border-top: solid $primary; }
-    #album-tracks { height: 1fr; border-top: solid $secondary; }
+    #album-tracks { width: 1fr; height: 100%; border-left: solid $secondary; }
+    #volume-bar { height: 1; width: 100%; padding: 0 1; }
     #now, #status { height: auto; min-height: 2; }
     ModalScreen { align: center middle; background: $background 80%; }
     ModalScreen > VerticalScroll { width: 90%; max-width: 100; height: 90%; border: thick $primary; padding: 1 2; background: $surface; }
@@ -180,7 +183,7 @@ class MusicApp(App):
     .band Select { width: 1fr; }
     """
     BINDINGS = [Binding("ctrl+m", "switch_mode", "Local/Online", priority=True), Binding("ctrl+o", "open_folder", "Open folder", priority=True), ("/", "search", "Search"), ("a", "add", "Add"), ("b", "album", "Add album"), Binding("space", "pause", "Play/Pause", priority=True),
-                ("f5", "fewer_bars", "Fewer bars"), ("f6", "more_bars", "More bars"), ("s", "shuffle", "Shuffle"), ("r", "repeat", "Repeat"), ("n", "next", "Next"), ("p", "previous", "Previous"), ("e", "eq", "EQ"),
+                ("f11", "artwork_mode", "Artwork mode"), ("f5", "fewer_bars", "Fewer bars"), ("f6", "more_bars", "More bars"), ("s", "shuffle", "Shuffle"), ("r", "repeat", "Repeat"), ("n", "next", "Next"), ("p", "previous", "Previous"), ("e", "eq", "EQ"),
                 ("l", "login", "Login"), ("+", "louder", "Vol +"), ("-", "quieter", "Vol -"), ("q", "quit", "Quit")]
     def __init__(self) -> None:
         super().__init__()
@@ -216,11 +219,13 @@ class MusicApp(App):
                 yield DataTable(id="queue", cursor_type="row")
             with Vertical(id="album-panel"):
                 yield Static("Album cover & track list", id="album-title", markup=False)
-                yield Artwork(id="artwork")
-                yield DataTable(id="album-tracks", cursor_type="row")
+                with Horizontal(id="album-content"):
+                    yield Artwork(id="artwork")
+                    yield DataTable(id="album-tracks", cursor_type="row")
         yield self.spectrum_widget
+        yield VolumeBar(self.volume, id="volume-bar")
         yield Static("Shuffle: Off • Repeat: Off • Space: Play/Pause", id="modes", markup=False)
-        yield Static("No track • Volume 70%", id="now", markup=False)
+        yield Static("No track", id="now", markup=False)
         yield Static("Enter plays selected row • a queues • l login • e EQ • Esc leaves input", id="status", markup=False)
         yield Footer()
 
@@ -528,6 +533,10 @@ class MusicApp(App):
         except (OSError, ValueError) as error:
             self.status(str(error) if isinstance(error, ValueError) else "Cannot read music folder. Check permissions.")
 
+    async def action_artwork_mode(self) -> None:
+        mode = await self.query_one('#artwork', Artwork).cycle_mode()
+        self.status(f"Artwork mode: {mode} • F11 switches renderer")
+
     def action_fewer_bars(self) -> None:
         self.monitor.bar_count = max(10, self.monitor.bar_count - 10)
         self.monitor.levels = [0.0] * self.monitor.bar_count
@@ -580,10 +589,12 @@ class MusicApp(App):
 
     async def action_louder(self) -> None:
         self.volume = min(100, self.volume + 5)
+        self.query_one("#volume-bar", VolumeBar).show_volume(self.volume)
         await self.safe_command("set_property", "volume", self.volume)
 
     async def action_quieter(self) -> None:
         self.volume = max(0, self.volume - 5)
+        self.query_one("#volume-bar", VolumeBar).show_volume(self.volume)
         await self.safe_command("set_property", "volume", self.volume)
 
     def action_eq(self) -> None:
@@ -618,7 +629,7 @@ class MusicApp(App):
             title = f"{self.current.title} — {self.current.artist}" if self.current else "No track"
             def stamp(value):
                 return f"{int(value)//60}:{int(value)%60:02d}" if value is not None else "--:--"
-            self.query_one("#now", Static).update(f"{title} • {'Paused' if paused else 'Playing'} • {stamp(elapsed)}/{stamp(duration)} • Volume {self.volume}%")
+            self.query_one("#now", Static).update(f"{title} • {'Paused' if paused else 'Playing'} • {stamp(elapsed)}/{stamp(duration)}")
         except RuntimeError:
             pass  # time/duration are unavailable while idle or on live streams
 

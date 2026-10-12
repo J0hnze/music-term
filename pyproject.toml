@@ -6,7 +6,7 @@ name = "music-term"
 version = "0.1.0"
 description = "Terminal music player using Textual and mpv"
 requires-python = ">=3.11"
-dependencies = ["textual>=1.0,<7", "ytmusicapi>=1.12,<2", "yt-dlp[default]>=2025.1", "numpy>=2,<3", "Pillow>=11,<14"]
+dependencies = ["textual>=1.0,<7", "ytmusicapi>=1.12,<2", "yt-dlp[default]>=2025.1", "numpy>=2,<3", "Pillow>=11,<14", "textual-image>=0.14,<0.15; python_version >= '3.12'"]
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 [project.scripts]

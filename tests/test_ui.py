@@ -192,6 +192,13 @@ async def test_beta_layout_album_preview_and_track_play(monkeypatch):
             assert meter.y >= left.bottom and meter.width >= left.width + right.width
             assert meter.bottom <= app.query_one('#now').region.y
             art = app.query_one('#artwork', Artwork)
+            track_list = app.query_one('#album-tracks', DataTable).region
+            assert art.region.right <= track_list.x
+            assert art.region.y == track_list.y
+            assert art.region.width > 0 and track_list.width > 0
+            assert art.region.width >= track_list.width * 2.5
+            assert art.region.bottom <= right.bottom
+            assert track_list.bottom <= right.bottom
             rendered = art.render()
             assert rendered.plain.count('▀') > 0
             assert len(rendered.plain.splitlines()) <= art.content_size.height
@@ -217,9 +224,72 @@ async def test_shuffle_repeat_density_and_space_restore(monkeypatch):
         await pilot.pause(.3)
         await app.workers.wait_for_complete()
         assert app.queue.shuffle and app.queue.repeat == 'one'
-        assert app.monitor.bar_count == 20
+        assert app.monitor.bar_count == 60
         assert app.current == tracks[0] and 'Saved' in app.title
         await pilot.press('space')
         assert app.playback_paused
         await pilot.press('space')
         assert not app.playback_paused
+
+
+async def test_f11_switches_cached_artwork_renderer(monkeypatch):
+    from io import BytesIO
+    from PIL import Image
+    from music_term.artwork import Artwork
+    from textual.widgets import Static
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    async with app.run_test(size=(140, 45)) as pilot:
+        art = app.query_one('#artwork', Artwork)
+        class FakeGraphic(Static):
+            def __init__(self, *, on_error, **kwargs):
+                super().__init__(**kwargs)
+                self.image = None
+        art.renderers = {'auto': None, 'blocks': None, 'sixel': FakeGraphic}
+        art.mode = 'auto'
+        image = BytesIO()
+        Image.new('RGB', (40, 40), (80, 120, 160)).save(image, 'PNG')
+        data = image.getvalue()
+        art.show_data(data)
+        await pilot.press('f11')
+        assert art.mode == 'blocks' and art.graphics is None
+        await pilot.press('f11')
+        assert art.mode == 'sixel' and art.graphics.display
+        assert art.graphics.image.size == (40, 40)
+        previous = art.graphics
+        await pilot.press('f11')
+        assert art.mode == 'auto' and art.graphics is None
+        assert previous not in art.children
+        assert art.data == data
+        assert 'Artwork mode: auto' in str(app.query_one('#status', Static).content)
+
+
+async def test_centred_spectrum_and_rainbow_volume(monkeypatch):
+    from music_term.spectrum import Spectrum, VolumeBar
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    async with app.run_test(size=(140, 45)) as pilot:
+        spectrum = app.query_one('#spectrum', Spectrum)
+        bar = app.query_one('#volume-bar', VolumeBar)
+        assert bar.region.y >= spectrum.region.bottom
+        assert bar.region.bottom <= app.query_one('#modes').region.y
+        spectrum.show_levels([.5] * 50)
+        heading = spectrum.content.plain.splitlines()[0]
+        assert abs((spectrum.content_size.width - len(heading.strip())) // 2 - (len(heading) - len(heading.lstrip()))) <= 1
+        app.safe_command = AsyncMock()
+        await pilot.press('escape', '+')
+        assert bar.volume == app.volume == 75
+        await pilot.press('-')
+        assert bar.volume == 70
+        output = bar.render()
+        assert 'Volume  70%' in output.plain
+        assert '█' in output.plain and '░' in output.plain
+        assert len({span.style for span in output.spans}) > 10
+        for size in [(80, 24), (140, 45)]:
+            await pilot.resize_terminal(*size)
+            await pilot.pause()
+            assert bar.render().cell_len <= bar.content_size.width
+        bar.show_volume(0)
+        assert '█' not in bar.render().plain
+        bar.show_volume(100)
+        assert '░' not in bar.render().plain

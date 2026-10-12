@@ -55,3 +55,6 @@ htmlcov/
 *.curl
 *.har
 *.http
+
+# Linux environment used by the Windows WSL launcher
+.venv-wsl/
