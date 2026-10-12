@@ -4,7 +4,129 @@ A terminal music player for Linux and Windows through WSL2 with YouTube Music se
 album previews, a saved playlist, an audio spectrum and a ten-band equalizer.
 Requires Python 3.11 or newer. Environment and dependency management use **uv**.
 
-## Setup with uv
+Run the commands below from the root of your cloned `music-term` repository
+(the directory containing `README.md` and `pyproject.toml`). In File Explorer,
+open the clone folder and choose **Open in Terminal**.
+
+[Windows install](#install-on-windows) · [Windows start](#start-on-windows) · [Linux/macOS setup](#linux-and-macos-setup)
+
+## Windows setup (WSL2 Ubuntu)
+
+The current player uses mpv Unix-socket IPC and PulseAudio monitoring. **Native
+Windows Python playback is not implemented**; use WSL2 Ubuntu. Windows-side uv,
+mpv or FFmpeg installations are not used by this setup.
+
+Use Windows 11 or Windows 10 build 19044+ with updated WSL2/WSLg. See Microsoft's
+[WSLg prerequisites](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps)
+and [WSL installation guide](https://learn.microsoft.com/en-us/windows/wsl/install).
+WSLg supplies the Linux audio connection; actual playback and spectrum depend on
+that connection being available.
+
+### Install on Windows
+
+In **administrator PowerShell**, install WSL if it is not already available:
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+Restart if requested. Open Ubuntu once and finish creating your Linux user and
+password. For an existing installation, use `wsl --list --verbose` to check that
+Ubuntu uses version 2; update WSL with `wsl --update` when needed.
+
+Open **Windows Terminal → PowerShell** (ordinary user, not administrator), then
+install the application dependencies:
+
+```powershell
+.\setup.bat
+```
+
+You can also double-click `setup.bat` in File Explorer. Setup
+asks for your **Ubuntu sudo password**, installs Linux audio dependencies, installs
+uv through its [official installer](https://docs.astral.sh/uv/getting-started/installation/)
+when missing, and creates `.venv-wsl` with locked dependencies and Python 3.12.
+The Linux environment is separate from `.venv`, and both are ignored by Git.
+The wrappers use a process-scoped PowerShell execution-policy bypass; they do not
+change your saved execution policy.
+
+### Start on Windows
+
+From a PowerShell tab in Windows Terminal:
+
+```powershell
+.\start.bat
+```
+
+Or double-click `start.bat`. Run setup once; use start for subsequent launches.
+Keep this terminal open while listening and press `q` to quit. The start script
+runs the Linux player inside Ubuntu; you do not need to activate its environment.
+
+For explicit Windows Terminal image rendering:
+
+```powershell
+.\start.bat -Artwork sixel
+```
+
+The default is `auto`. Use `-Artwork blocks` for the portable artwork fallback.
+Press **F11** in the player to cycle the available artwork modes. Click or drag
+the volume slider below the spectrum to change volume.
+
+### Other distributions and development setup
+
+For another Ubuntu distribution name or development dependencies:
+
+```powershell
+.\setup.bat -Distribution Ubuntu-24.04 -Dev
+.\start.bat -Distribution Ubuntu-24.04
+powershell -NoProfile -ExecutionPolicy Bypass -File .\windows.ps1 -Mode check -Distribution Ubuntu-24.04
+```
+
+Use the exact distribution name shown by `wsl --list --verbose`. Automatic
+package setup supports Ubuntu/Debian distributions. The check option checks mpv,
+FFmpeg and the PulseAudio connection; it does not prove live YouTube playback.
+
+### Start directly from Ubuntu
+
+Open an Ubuntu tab in Windows Terminal and navigate to your clone directory.
+From the repository root:
+
+```sh
+bash tools/windows-wsl.sh setup dev
+bash tools/windows-wsl.sh start
+```
+
+To run tests using the same environment:
+
+```sh
+export UV_PROJECT_ENVIRONMENT="$PWD/.venv-wsl"
+uv run --locked --extra dev pytest -q
+```
+
+The project's playlist remains in `tmp/playlist.json` alongside the source.
+Credentials live in the **Linux user's** config directory inside WSL. To open
+music files through Ctrl+O, use a relative path such as `./music` for a folder
+inside the clone. External Windows folders must use their WSL `/mnt/<drive>/...`
+path; pasted Windows drive paths do not work unchanged.
+Keep using the same distribution and Linux user to retain access to saved login
+credentials. As on Linux, choose **Copy as cURL (bash)** for the login request.
+
+### Windows troubleshooting
+
+- **Ubuntu unavailable:** complete its first launch; check the name with
+  `wsl --list --verbose` and pass `-Distribution` if necessary.
+- **WSL1:** use `wsl --set-version Ubuntu 2` from Windows.
+- **No sound:** run the check option and `pactl info` inside Ubuntu. Update WSL,
+  reopen Ubuntu, and check Windows output volume/device. Do not start another
+  PulseAudio server over WSLg's connection.
+- **No spectrum:** an output monitor must be exposed by the WSL audio server.
+  Inspect `pactl list short sources` in Ubuntu. Playback can work without bars;
+  WSL loopback capture is not verified on every audio setup.
+- **YouTube stream errors:** install Deno **inside Ubuntu**, using the official
+  instructions linked above; Windows-installed Deno is not the intended runtime.
+- **Slow environment setup on /mnt/c:** a separate checkout in your Linux home
+  directory can be faster. Keep its playlist and credentials out of source control.
+
+## Linux and macOS setup
 
 Install the system audio tools on Ubuntu or Debian:
 
@@ -13,17 +135,16 @@ sudo apt update
 sudo apt install python3 mpv ffmpeg pulseaudio-utils
 ```
 
-Or on MacOS: 
+Or on MacOS:
 ```sh
 brew update
-brew install python mpv ffmpeg 
+brew install python mpv ffmpeg
 ```
 
 Install uv if needed using the [official uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
-Then open the project directory and install its locked dependencies:
+Then open your cloned repository root and install its locked dependencies:
 
 ```sh
-cd ~/projects/music-term
 uv sync --extra dev
 uv run music-term --check
 uv run music-term
@@ -44,98 +165,6 @@ To update extraction support intentionally:
 uv lock --upgrade-package yt-dlp
 uv sync --extra dev
 ```
-
-## Windows setup (WSL2 Ubuntu)
-
-The current player uses mpv Unix-socket IPC and PulseAudio monitoring. **Native
-Windows Python playback is not implemented**; use WSL2 Ubuntu. Windows-side uv,
-mpv or FFmpeg installations are not used by this setup.
-
-Use Windows 11 or Windows 10 build 19044+ with updated WSL2/WSLg. See Microsoft's
-[WSLg prerequisites](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps)
-and [WSL installation guide](https://learn.microsoft.com/en-us/windows/wsl/install).
-WSLg supplies the Linux audio connection; actual playback and spectrum depend on
-that connection being available.
-
-### Option 1: Windows setup and launcher
-
-In **administrator PowerShell**, install WSL if it is not already available:
-
-```powershell
-wsl --install -d Ubuntu
-```
-
-Restart if requested. Open Ubuntu once and finish creating your Linux user and
-password. For an existing installation, use `wsl --list --verbose` to check that
-Ubuntu uses version 2; update WSL with `wsl --update` when needed.
-
-From ordinary PowerShell in the project directory:
-
-```powershell
-cd C:\Vaults\new-brain-master\Efforts\Projects\music-term
-.\setup.bat
-.\start.bat
-```
-
-Or double-click `setup.bat` once, then `start.bat` for subsequent launches. Setup
-asks for your **Ubuntu sudo password**, installs Linux audio dependencies, installs
-uv through its [official installer](https://docs.astral.sh/uv/getting-started/installation/)
-when missing, and creates `.venv-wsl` with locked dependencies and Python 3.12.
-The Linux environment is separate from `.venv`, and both are ignored by Git.
-The wrappers use a process-scoped PowerShell execution-policy bypass; they do not
-change your saved execution policy.
-
-For another Ubuntu distribution name or development dependencies:
-
-```powershell
-.\setup.bat -Distribution Ubuntu-24.04 -Dev
-.\start.bat -Distribution Ubuntu-24.04
-powershell -NoProfile -ExecutionPolicy Bypass -File .\windows.ps1 -Mode check -Distribution Ubuntu-24.04
-```
-
-Use the exact distribution name shown by `wsl --list --verbose`. Automatic
-package setup supports Ubuntu/Debian distributions. The check option checks mpv,
-FFmpeg and the PulseAudio connection; it does not prove live YouTube playback.
-
-### Option 2: Work directly in Ubuntu
-
-Open an Ubuntu tab in Windows Terminal. For this vault location:
-
-```sh
-cd /mnt/c/Vaults/new-brain-master/Efforts/Projects/music-term
-bash tools/windows-wsl.sh setup dev
-bash tools/windows-wsl.sh start
-```
-
-To run tests using the same environment:
-
-```sh
-export UV_PROJECT_ENVIRONMENT="$PWD/.venv-wsl"
-uv run --locked --extra dev pytest -q
-```
-
-The project's playlist remains in `tmp/playlist.json` alongside the source.
-Credentials live in the **Linux user's** config directory inside WSL. To open
-Windows music files through Ctrl+O, use a Linux path such as
-`/mnt/c/Users/your-name/Music`; pasted Windows drive paths do not work unchanged.
-Keep using the same distribution and Linux user to retain access to saved login
-credentials. As on Linux, choose **Copy as cURL (bash)** for the login request.
-
-### Windows troubleshooting
-
-- **Ubuntu unavailable:** complete its first launch; check the name with
-  `wsl --list --verbose` and pass `-Distribution` if necessary.
-- **WSL1:** use `wsl --set-version Ubuntu 2` from Windows.
-- **No sound:** run the check option and `pactl info` inside Ubuntu. Update WSL,
-  reopen Ubuntu, and check Windows output volume/device. Do not start another
-  PulseAudio server over WSLg's connection.
-- **No spectrum:** an output monitor must be exposed by the WSL audio server.
-  Inspect `pactl list short sources` in Ubuntu. Playback can work without bars;
-  WSL loopback capture is not verified on every audio setup.
-- **YouTube stream errors:** install Deno **inside Ubuntu**, using the official
-  instructions linked above; Windows-installed Deno is not the intended runtime.
-- **Slow environment setup on /mnt/c:** a separate checkout in your Linux home
-  directory can be faster. Keep its playlist and credentials out of source control.
 
 ## Features and layout
 
