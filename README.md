@@ -4,6 +4,8 @@ A terminal music player for Linux and Windows through WSL2 with YouTube Music se
 album previews, a saved playlist, an audio spectrum and a ten-band equalizer.
 Requires Python 3.11 or newer. Environment and dependency management use **uv**.
 
+I used codex to help me make this as having youtube open was too distracting and easy to access the short from videos so this is just for playing music.
+
 Run the commands below from the root of your cloned `music-term` repository
 (the directory containing `README.md` and `pyproject.toml`). In File Explorer,
 open the clone folder and choose **Open in Terminal**.
