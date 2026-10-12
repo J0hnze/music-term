@@ -277,10 +277,18 @@ async def test_centred_spectrum_and_rainbow_volume(monkeypatch):
         heading = spectrum.content.plain.splitlines()[0]
         assert abs((spectrum.content_size.width - len(heading.strip())) // 2 - (len(heading) - len(heading.lstrip()))) <= 1
         app.safe_command = AsyncMock()
-        await pilot.press('escape', '+')
+        await app.action_louder()
         assert bar.volume == app.volume == 75
-        await pilot.press('-')
+        await app.action_quieter()
         assert bar.volume == 70
+        await app.action_louder()
+        assert bar.volume == 75
+        await app.action_quieter()
+        assert bar.volume == 70
+        app.query_one('#search', Input).focus()
+        await pilot.press('+', '-')
+        assert bar.volume == 70
+        assert app.query_one('#search', Input).value == '+-'
         output = bar.render()
         assert 'Volume  70%' in output.plain
         assert '█' in output.plain and '░' in output.plain
@@ -293,3 +301,72 @@ async def test_centred_spectrum_and_rainbow_volume(monkeypatch):
         assert '█' not in bar.render().plain
         bar.show_volume(100)
         assert '░' not in bar.render().plain
+
+
+async def test_playlist_delete_clear_and_input_guards(monkeypatch):
+    from music_term.state import load_playlist
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    app.player.command = AsyncMock()
+    items = [Track('First', '', '/first'), Track('Playing', '', '/playing'), Track('Last', '', '/last')]
+    async with app.run_test(size=(140, 45)) as pilot:
+        app.queue.tracks = items.copy()
+        app.queue.index = 1
+        app.current = items[1]
+        app.playback_active = True
+        app.refresh_queue()
+        search = app.query_one('#search', Input)
+        search.focus()
+        await pilot.press('d')
+        assert search.value == 'd' and len(app.queue.tracks) == 3
+        await pilot.press('ctrl+c')
+        assert len(app.queue.tracks) == 3
+        table = app.query_one('#queue', DataTable)
+        table.focus()
+        table.move_cursor(row=0)
+        await pilot.press('d')
+        assert app.queue.tracks == items[1:] and app.queue.index == 0
+        assert app.current == items[1] and app.playback_active
+        app.player.writer = object()
+        table.move_cursor(row=0)
+        await pilot.press('d')
+        assert app.queue.tracks == [items[2]]
+        assert app.current is None and not app.playback_active
+        app.player.command.assert_called_with('stop')
+        await pilot.press('ctrl+c')
+        assert app.queue.tracks == [] and table.row_count == 0
+        assert load_playlist().tracks == []
+        assert app.is_running
+        app.player.writer = None
+
+
+async def test_volume_slider_click_and_keyboard(monkeypatch):
+    from music_term.spectrum import VolumeBar
+    monkeypatch.setattr('music_term.ui.dependencies', lambda: ['mpv', 'ffmpeg'])
+    app = MusicApp()
+    app.safe_command = AsyncMock()
+    async with app.run_test(size=(140, 45)) as pilot:
+        bar = app.query_one('#volume-bar', VolumeBar)
+        left = bar.content_region.x - bar.region.x + 13
+        last = bar.content_size.width - 13 - 1
+        y = bar.content_region.y - bar.region.y
+        await pilot.click('#volume-bar', offset=(left, y))
+        assert app.volume == bar.volume == 0
+        assert str(bar.render().spans[-1].style) == '#394554'
+        await pilot.click('#volume-bar', offset=(left + last, y))
+        assert app.volume == bar.volume == 100
+        assert str(bar.render().spans[-1].style) == '#ff0000'
+        await pilot.click('#volume-bar', offset=(left + last // 2, y))
+        assert 49 <= app.volume <= 51
+        await pilot.press('home', 'right')
+        assert app.volume == 5
+        await pilot.press('end', 'left')
+        assert app.volume == 95
+        app.safe_command.assert_called_with('set_property', 'volume', 95)
+        assert not bar.dragging
+        await pilot.mouse_down('#volume-bar', offset=(left, y))
+        assert bar.dragging
+        await pilot.hover('#volume-bar', offset=(left + last // 2, y))
+        assert 49 <= app.volume <= 51
+        await pilot.mouse_up('#volume-bar', offset=(left + last, y))
+        assert app.volume == 100 and not bar.dragging

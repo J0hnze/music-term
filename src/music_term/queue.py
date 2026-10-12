@@ -45,6 +45,23 @@ class Queue:
             insert = random.randrange(position, len(self._order) + 1) if self.shuffle else len(self._order)
             self._order.insert(insert, len(self.tracks) - 1)
 
+    def remove(self, index: int) -> Track | None:
+        if not 0 <= index < len(self.tracks):
+            return None
+        self._sync_order()
+        removed = self.tracks.pop(index)
+        self._order = [item - 1 if item > index else item for item in self._order if item != index]
+        if self.index > index:
+            self.index -= 1
+        elif self.index == index:
+            self.index = min(index, len(self.tracks) - 1)
+        return removed
+
+    def clear(self) -> None:
+        self.tracks.clear()
+        self.index = -1
+        self._order.clear()
+
     def select(self, index: int) -> Track | None:
         if 0 <= index < len(self.tracks):
             self.index = index

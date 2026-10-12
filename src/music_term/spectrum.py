@@ -5,6 +5,7 @@ import shutil
 import numpy as np
 from rich.text import Text
 from textual.widgets import Static
+from textual.message import Message
 from .eq import BANDS
 
 RATE = 48000
@@ -130,15 +131,75 @@ class Spectrum(Static):
         self.update(output)
 
 
-class VolumeBar(Static):
+class VolumeBar(Static, can_focus=True):
     """Rainbow fill represents the player's volume setting, not measured audio."""
+    class Changed(Message):
+        def __init__(self, volume: int):
+            super().__init__()
+            self.volume = volume
+
+    BINDINGS = [('left', 'lower', 'Lower volume'), ('right', 'raise', 'Raise volume'),
+                ('home', 'minimum', 'Mute'), ('end', 'maximum', 'Maximum volume')]
+
     def __init__(self, volume: int = 70, **kwargs):
         super().__init__(**kwargs)
         self.volume = volume
+        self.dragging = False
 
     def show_volume(self, volume: int) -> None:
         self.volume = max(0, min(100, volume))
         self.refresh()
+
+    def set_volume(self, volume: int) -> None:
+        self.show_volume(volume)
+        self.post_message(self.Changed(self.volume))
+
+    def action_lower(self):
+        self.set_volume(self.volume - 5)
+
+    def action_raise(self):
+        self.set_volume(self.volume + 5)
+
+    def action_minimum(self):
+        self.set_volume(0)
+
+    def action_maximum(self):
+        self.set_volume(100)
+
+    def mouse_volume(self, event, clamp: bool = False):
+        label_width = len(f'Volume {self.volume:3d}%  ')
+        width = self.content_size.width - label_width
+        position = event.screen_x - self.content_region.x - label_width
+        if width <= 1 or (not clamp and not 0 <= position < width):
+            return None
+        return round(max(0, min(width - 1, position)) / (width - 1) * 100)
+
+    def on_mouse_down(self, event):
+        if event.button != 1:
+            return
+        volume = self.mouse_volume(event)
+        if volume is not None:
+            event.stop()
+            self.focus()
+            self.dragging = True
+            self.capture_mouse()
+            self.set_volume(volume)
+
+    def on_mouse_move(self, event):
+        if self.dragging:
+            event.stop()
+            volume = self.mouse_volume(event, clamp=True)
+            if volume is not None and volume != self.volume:
+                self.set_volume(volume)
+
+    def on_mouse_up(self, event):
+        if self.dragging and event.button == 1:
+            event.stop()
+            volume = self.mouse_volume(event, clamp=True)
+            if volume is not None and volume != self.volume:
+                self.set_volume(volume)
+            self.dragging = False
+            self.release_mouse()
 
     def render(self) -> Text:
         available = max(1, self.content_size.width)
@@ -147,7 +208,8 @@ class VolumeBar(Static):
         width = max(0, available - label.cell_len)
         filled = round(width * self.volume / 100)
         for index in range(width):
-            red, green, blue = colorsys.hsv_to_rgb(index / max(1, width - 1) * .8, 1, 1)
+            red, green, blue = colorsys.hsv_to_rgb((1 - index / max(1, width - 1)) * (2 / 3), 1, 1)
             color = f'#{round(red * 255):02x}{round(green * 255):02x}{round(blue * 255):02x}'
-            label.append('█' if index < filled else '░', style=color if index < filled else '#394554')
+            thumb = round(max(0, width - 1) * self.volume / 100)
+            label.append('●' if index == thumb else ('█' if index < filled else '░'), style=color if index <= thumb else '#394554')
         return label

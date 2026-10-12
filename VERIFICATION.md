@@ -82,3 +82,9 @@ thread with a UI timeout; no live account request was made during tests.
 
 - Spectrum heading centred; responsive rainbow player-volume bar added below it. +/− updates the bar immediately.
 - Eleven UI tests passed, covering title positioning, gradient, 0/100 percent volume, keyboard updates and 80x24/140x45 resizing.
+
+## Playlist deletion and clearing
+
+- D removes the selected row only when the playlist is focused. Ctrl+C clears outside inputs/dialogs and does not quit. Saved state updates after either action.
+- Active-track removal and clear stop mpv playback; other deletion preserves current-track indexing and shuffle order. Pending album/play work is cancelled on clear.
+- Seventeen queue/UI tests passed, including keyboard guards, current-track deletion, empty saved state and shuffle-index remapping.

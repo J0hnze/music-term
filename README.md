@@ -143,8 +143,8 @@ credentials. As on Linux, choose **Copy as cURL (bash)** for the login request.
 - **Right:** album cover and track list side by side. Highlight a result to preview its album;
   select an album track and press Enter to queue and play it.
 - **Bottom:** audio spectrum with a centred title, rainbow volume bar, playback
-  modes and track status. The bar shows the player volume (0–100%), adjusted with
-  +/−; it is not an audio loudness meter.
+  modes and track status. The bar shows the player volume (0–100%), adjusted by
+  clicking or dragging the slider (blue = low, red = high); it is not an audio loudness meter.
 - Shuffle, repeat one track, repeat the playlist, pause/resume and volume controls.
 - Playlist restoration after restarting, without automatic playback.
 - Current track and paused state in the terminal window title.
@@ -195,10 +195,14 @@ the playlist and restored at the next launch.
 | `a` | Queue the selected song or album |
 | `b` | Queue the selected result's full album when online album metadata exists |
 | Space | Play when idle; pause/resume when playing |
+| `d` on a playlist row | Delete selected item; stops playback if it is the current track |
+| Ctrl+C outside inputs/dialogs | Clear saved playlist and stop playback; does not quit |
 | `n` / `p` | Next / previous track |
 | `s` | Toggle shuffle |
 | `r` | Cycle repeat Off → One track → Playlist |
-| `+` / `-` | Raise / lower volume by 5% |
+| Click / drag volume slider | Set volume; blue is low, red is high |
+| Left / Right on volume slider | Lower / raise volume by 5% |
+| Home / End on volume slider | Set volume to 0% / 100% |
 | F11 | Cycle artwork rendering: Auto, Blocks and available graphics protocol |
 | F5 / F6 | Fewer / more spectrum bars, from 10 to 120 |
 | `e` | Open the equalizer |

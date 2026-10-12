@@ -182,9 +182,9 @@ class MusicApp(App):
     .band Label { width: 16; padding-top: 1; }
     .band Select { width: 1fr; }
     """
-    BINDINGS = [Binding("ctrl+m", "switch_mode", "Local/Online", priority=True), Binding("ctrl+o", "open_folder", "Open folder", priority=True), ("/", "search", "Search"), ("a", "add", "Add"), ("b", "album", "Add album"), Binding("space", "pause", "Play/Pause", priority=True),
+    BINDINGS = [Binding("ctrl+c", "clear_playlist", "Clear playlist", priority=True), ("d", "delete_playlist_item", "Delete item"), Binding("ctrl+m", "switch_mode", "Local/Online", priority=True), Binding("ctrl+o", "open_folder", "Open folder", priority=True), ("/", "search", "Search"), ("a", "add", "Add"), ("b", "album", "Add album"), Binding("space", "pause", "Play/Pause", priority=True),
                 ("f11", "artwork_mode", "Artwork mode"), ("f5", "fewer_bars", "Fewer bars"), ("f6", "more_bars", "More bars"), ("s", "shuffle", "Shuffle"), ("r", "repeat", "Repeat"), ("n", "next", "Next"), ("p", "previous", "Previous"), ("e", "eq", "EQ"),
-                ("l", "login", "Login"), ("+", "louder", "Vol +"), ("-", "quieter", "Vol -"), ("q", "quit", "Quit")]
+                ("l", "login", "Login"), ("q", "quit", "Quit")]
     def __init__(self) -> None:
         super().__init__()
         self.credentials = Credentials()
@@ -326,6 +326,42 @@ class MusicApp(App):
             table.add_row(("▶ " if index == self.queue.index else "") + track.title, track.artist)
         self.persist_playlist()
 
+    async def stop_playlist_playback(self) -> None:
+        self.workers.cancel_group(self, "play")
+        self.loading = False
+        self.current = None
+        self.playback_active = False
+        self.playback_paused = False
+        self.update_terminal_title(None)
+        self.query_one('#now', Static).update('No track')
+        self.render_spectrum()
+        if self.player.writer:
+            await self.safe_command('stop')
+
+    async def action_delete_playlist_item(self) -> None:
+        table = self.query_one('#queue', DataTable)
+        index = table.cursor_row
+        if not self.queue.tracks:
+            self.status('Playlist is empty')
+            return
+        stop = index == self.queue.index
+        removed = self.queue.remove(index)
+        if removed is None:
+            return
+        if stop:
+            await self.stop_playlist_playback()
+        self.refresh_queue()
+        if self.queue.tracks:
+            table.move_cursor(row=min(index, len(self.queue.tracks) - 1))
+        self.status(f'Removed {removed.title} from playlist')
+
+    async def action_clear_playlist(self) -> None:
+        self.workers.cancel_group(self, 'album')
+        self.queue.clear()
+        await self.stop_playlist_playback()
+        self.refresh_queue()
+        self.status('Playlist cleared')
+
     def action_add(self) -> None:
         track = self.selected()
         if track and track.is_album:
@@ -460,6 +496,12 @@ class MusicApp(App):
             self.status(str(error))
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in {'louder', 'quieter'}:
+            return not isinstance(self.screen, ModalScreen)
+        if action == 'delete_playlist_item':
+            return not isinstance(self.screen, ModalScreen) and self.focused is self.query_one('#queue', DataTable)
+        if action == 'clear_playlist':
+            return not isinstance(self.focused, (Input, Select)) and not isinstance(self.screen, ModalScreen)
         if action == "pause" and (isinstance(self.focused, (Input, Select)) or isinstance(self.screen, ModalScreen)):
             return False
         return True
@@ -586,6 +628,10 @@ class MusicApp(App):
         track = self.queue.previous()
         if track:
             self.play(track)
+
+    async def on_volume_bar_changed(self, event: VolumeBar.Changed) -> None:
+        self.volume = event.volume
+        await self.safe_command('set_property', 'volume', self.volume)
 
     async def action_louder(self) -> None:
         self.volume = min(100, self.volume + 5)

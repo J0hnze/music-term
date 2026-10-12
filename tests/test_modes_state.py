@@ -43,3 +43,17 @@ def test_terminal_title_escapes_removed():
     title = window_title(Track('Track\x1b]0;evil\x07', 'Artist\n', '/local'), True)
     assert '\x1b' not in title and '\x07' not in title and '\n' not in title
     assert title.startswith('Paused') and 'music-term' in title
+
+
+def test_remove_preserves_current_and_shuffle_order():
+    queue = Queue(tracks=tracks(), index=3, shuffle=True)
+    queue._order = [3, 1, 4, 0, 2]
+    queue.remove(1)
+    assert queue.index == 2 and queue.tracks[queue.index].title == '3'
+    assert queue._order == [2, 3, 0, 1]
+    assert queue.remove(99) is None
+    queue.remove(2)
+    assert queue.tracks[queue.index].title == '4'
+    queue.clear()
+    assert queue.tracks == [] and queue.index == -1 and queue._order == []
+    assert queue.shuffle and queue.repeat == 'off'
