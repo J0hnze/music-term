@@ -1,5 +1,6 @@
 """Album artwork rendered as terminal true-colour half blocks."""
 from io import BytesIO
+from pathlib import Path
 import re
 from urllib.parse import urlparse, parse_qs
 import requests
@@ -39,6 +40,14 @@ def fetch_artwork(track: Track) -> bytes | None:
     url = artwork_url(track)
     if not url:
         return None
+    local_path = Path(url).expanduser()
+    if local_path.is_file():
+        try:
+            if local_path.stat().st_size > 5_000_000:
+                return None
+            return local_path.read_bytes()
+        except OSError:
+            return None
     # Accept only thumbnail hosts; never send saved authentication headers.
     host = urlparse(url).hostname or ''
     if urlparse(url).scheme != 'https' or not (host.endswith('.googleusercontent.com') or host.endswith('.ggpht.com') or host.endswith('.ytimg.com')):

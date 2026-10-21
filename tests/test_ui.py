@@ -192,9 +192,11 @@ async def test_beta_layout_album_preview_and_track_play(monkeypatch):
             assert meter.y >= left.bottom and meter.width >= left.width + right.width
             assert meter.bottom <= app.query_one('#now').region.y
             art = app.query_one('#artwork', Artwork)
+            artwork_column = app.query_one('#artwork-column')
             track_list = app.query_one('#album-tracks', DataTable).region
             assert art.region.right <= track_list.x
-            assert art.region.y == track_list.y
+            assert artwork_column.region.y == track_list.y
+            assert art.region.y == track_list.y + 1
             assert art.region.width > 0 and track_list.width > 0
             assert art.region.width >= track_list.width * 2.5
             assert art.region.bottom <= right.bottom
@@ -220,7 +222,7 @@ async def test_shuffle_repeat_density_and_space_restore(monkeypatch):
     app.player.command = AsyncMock()
     async with app.run_test(size=(100, 35)) as pilot:
         assert app.queue.tracks == tracks and app.current is None
-        await pilot.press('escape', 's', 'r', 'f6', 'f6', 'f5', 'space')
+        await pilot.press('escape', 's', 'r', 'ctrl+plus', 'ctrl+plus', 'ctrl+minus', 'space')
         await pilot.pause(.3)
         await app.workers.wait_for_complete()
         assert app.queue.shuffle and app.queue.repeat == 'one'
@@ -232,7 +234,7 @@ async def test_shuffle_repeat_density_and_space_restore(monkeypatch):
         assert not app.playback_paused
 
 
-async def test_f11_switches_cached_artwork_renderer(monkeypatch):
+async def test_c_switches_cached_artwork_renderer(monkeypatch):
     from io import BytesIO
     from PIL import Image
     from music_term.artwork import Artwork
@@ -251,13 +253,13 @@ async def test_f11_switches_cached_artwork_renderer(monkeypatch):
         Image.new('RGB', (40, 40), (80, 120, 160)).save(image, 'PNG')
         data = image.getvalue()
         art.show_data(data)
-        await pilot.press('f11')
+        await pilot.press('escape', 'c')
         assert art.mode == 'blocks' and art.graphics is None
-        await pilot.press('f11')
+        await pilot.press('c')
         assert art.mode == 'sixel' and art.graphics.display
         assert art.graphics.image.size == (40, 40)
         previous = art.graphics
-        await pilot.press('f11')
+        await pilot.press('c')
         assert art.mode == 'auto' and art.graphics is None
         assert previous not in art.children
         assert art.data == data

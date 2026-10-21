@@ -167,7 +167,9 @@ class MusicApp(App):
     #album-panel { width: 2fr; border: solid $secondary; }
     #album-title { height: auto; max-height: 3; padding: 0 1; }
     #album-content { height: 1fr; }
-    #artwork { width: 3fr; height: 100%; min-height: 3; content-align: center middle; align: center middle; }
+    #artwork-column { width: 3fr; height: 100%; }
+    #artwork-mode { height: 1; padding-left: 1; color: $text-muted; }
+    #artwork { width: 100%; height: 1fr; min-height: 3; content-align: center middle; align: center middle; }
     #artwork-image { width: auto; height: auto; max-width: 100%; max-height: 100%; }
     #spectrum { height: 1fr; min-height: 6; width: 100%; border: solid $success; padding: 0 1; }
     DataTable { width: 100%; height: 1fr; }
@@ -183,7 +185,7 @@ class MusicApp(App):
     .band Select { width: 1fr; }
     """
     BINDINGS = [Binding("ctrl+c", "clear_playlist", "Clear playlist", priority=True), ("d", "delete_playlist_item", "Delete item"), Binding("ctrl+m", "switch_mode", "Local/Online", priority=True), Binding("ctrl+o", "open_folder", "Open folder", priority=True), ("/", "search", "Search"), ("a", "add", "Add"), ("b", "album", "Add album"), Binding("space", "pause", "Play/Pause", priority=True),
-                ("f11", "artwork_mode", "Artwork mode"), ("f5", "fewer_bars", "Fewer bars"), ("f6", "more_bars", "More bars"), ("s", "shuffle", "Shuffle"), ("r", "repeat", "Repeat"), ("n", "next", "Next"), ("p", "previous", "Previous"), ("e", "eq", "EQ"),
+                ("c", "artwork_mode", "Cover style"), ("ctrl+minus", "fewer_bars", "EQ-"), ("ctrl+plus", "more_bars", "EQ+"), ("s", "shuffle", "Shuffle"), ("r", "repeat", "Repeat"), ("n", "next", "Next"), ("p", "previous", "Previous"), Binding("ctrl+e", "eq", "EQ", priority=True), ("e", "eq", "EQ"),
                 ("l", "login", "Login"), ("q", "quit", "Quit")]
     def __init__(self) -> None:
         super().__init__()
@@ -220,13 +222,15 @@ class MusicApp(App):
             with Vertical(id="album-panel"):
                 yield Static("Album cover & track list", id="album-title", markup=False)
                 with Horizontal(id="album-content"):
-                    yield Artwork(id="artwork")
+                    with Vertical(id="artwork-column"):
+                        yield Static("Cover mode: Auto", id="artwork-mode", markup=False)
+                        yield Artwork(id="artwork")
                     yield DataTable(id="album-tracks", cursor_type="row")
         yield self.spectrum_widget
         yield VolumeBar(self.volume, id="volume-bar")
         yield Static("Shuffle: Off • Repeat: Off • Space: Play/Pause", id="modes", markup=False)
         yield Static("No track", id="now", markup=False)
-        yield Static("Enter plays selected row • a queues • l login • e EQ • Esc leaves input", id="status", markup=False)
+        yield Static("Enter plays selected row • a queues • l login • Ctrl+E EQ • Esc leaves input", id="status", markup=False)
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -240,6 +244,8 @@ class MusicApp(App):
             if self.queue.index >= 0:
                 self.query_one("#queue", DataTable).move_cursor(row=self.queue.index)
             if self.queue.tracks:
+                preview = self.queue.tracks[self.queue.index if self.queue.index >= 0 else 0]
+                self.show_album(preview)
                 self.status("Playlist restored • Space plays selected track")
         except (ValueError, OSError) as error:
             self.status(str(error) if isinstance(error, ValueError) else "Cannot read tmp/playlist.json. Check permissions.")
@@ -258,6 +264,7 @@ class MusicApp(App):
         self.refresh_account()
         self.start_spectrum()
         self.set_interval(0.08, self.render_spectrum)
+        self.update_artwork_mode_label()
 
     @work(exclusive=True, group="account")
     async def refresh_account(self) -> None:
@@ -274,7 +281,7 @@ class MusicApp(App):
         try:
             await self.monitor.start()
         except OSError:
-            self.monitor.message = "Spectrum unavailable: check ffmpeg and pulseaudio-utils"
+            self.monitor.message = "Spectrum unavailable: check FFmpeg and the macOS audio monitor"
 
     def render_spectrum(self) -> None:
         self.spectrum_widget.show_levels(
@@ -475,11 +482,14 @@ class MusicApp(App):
     async def refresh_artwork(self, track: Track) -> None:
         art = self.query_one("#artwork", Artwork)
         art.show_data(None, "Loading art…")
+        self.update_artwork_mode_label("downloading cover")
         try:
             data = await asyncio.wait_for(asyncio.to_thread(fetch_artwork, track), timeout=15)
             art.show_data(data, "No album art" if not data else "")
+            self.update_artwork_mode_label("cover downloaded" if data else "cover unavailable")
         except TimeoutError:
             art.show_data(None, "Art unavailable")
+            self.update_artwork_mode_label("cover unavailable")
 
     async def apply_eq(self) -> bool:
         try:
@@ -577,17 +587,23 @@ class MusicApp(App):
 
     async def action_artwork_mode(self) -> None:
         mode = await self.query_one('#artwork', Artwork).cycle_mode()
-        self.status(f"Artwork mode: {mode} • F11 switches renderer")
+        self.update_artwork_mode_label()
+        self.status(f"Artwork mode: {mode} • c switches cover style")
+
+    def update_artwork_mode_label(self, state: str | None = None) -> None:
+        mode = self.query_one('#artwork', Artwork).mode.title()
+        suffix = f" • {state}" if state else ""
+        self.query_one('#artwork-mode', Static).update(f"Cover mode: {mode}{suffix}")
 
     def action_fewer_bars(self) -> None:
         self.monitor.bar_count = max(10, self.monitor.bar_count - 10)
         self.monitor.levels = [0.0] * self.monitor.bar_count
-        self.status(f"Spectrum: {self.monitor.bar_count} bars • F5 fewer / F6 more")
+        self.status(f"EQ-: {self.monitor.bar_count} spectrum bars")
 
     def action_more_bars(self) -> None:
         self.monitor.bar_count = min(120, self.monitor.bar_count + 10)
         self.monitor.levels = [0.0] * self.monitor.bar_count
-        self.status(f"Spectrum: {self.monitor.bar_count} bars • F5 fewer / F6 more")
+        self.status(f"EQ+: {self.monitor.bar_count} spectrum bars")
 
     def action_shuffle(self) -> None:
         self.queue.set_shuffle(not self.queue.shuffle)

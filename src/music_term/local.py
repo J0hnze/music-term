@@ -4,6 +4,17 @@ from pathlib import Path
 from .queue import Track
 
 AUDIO_EXTENSIONS = {".mp3", ".flac", ".wav", ".ogg", ".opus", ".m4a", ".aac", ".wma", ".aiff", ".aif", ".alac"}
+COVER_NAMES = ("cover", "folder", "front", "albumart", "album-art")
+COVER_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+
+def folder_artwork(directory: Path) -> str | None:
+    """Find a conventional local album cover beside the audio files."""
+    for stem in COVER_NAMES:
+        for extension in COVER_EXTENSIONS:
+            candidate = directory / f"{stem}{extension}"
+            if candidate.is_file() and os.access(candidate, os.R_OK):
+                return str(candidate)
+    return None
 
 def scan_folder(folder: str) -> list[Track]:
     root = Path(folder).expanduser().resolve()
@@ -20,7 +31,7 @@ def scan_folder(folder: str) -> list[Track]:
                 continue
             if not os.access(path, os.R_OK):
                 continue
-            tracks.append(Track(path.stem, "Local file", str(path), album_title=path.parent.name))
+            tracks.append(Track(path.stem, "Local file", str(path), artwork=folder_artwork(path.parent), album_title=path.parent.name))
             if len(tracks) >= 5000:
                 return tracks
     return tracks

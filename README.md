@@ -4,6 +4,74 @@ A terminal music player for Linux and Windows through WSL2 with YouTube Music se
 album previews, a saved playlist, an audio spectrum and a ten-band equalizer.
 Requires Python 3.11 or newer. Environment and dependency management use **uv**.
 
+The application keeps its UI and music-service logic platform-neutral. Operating-system integrations live under
+`src/music_term/platform/`; the current macOS backend provides mpv playback over a Unix socket and an optional
+PulseAudio-compatible spectrum monitor. Linux and native Windows backends can be added there without coupling them
+to the UI.
+
+### macOS setup and start
+
+From the project root:
+
+```sh
+./macos_setup.sh
+./macos_start.sh
+```
+
+The setup script installs Homebrew packages for Python, mpv, FFmpeg, uv and Deno, then creates the locked uv
+environment. The start script can receive normal application arguments, for example `./macos_start.sh --check`.
+
+The spectrum is optional on macOS because macOS does not expose a built-in system-output monitor. To enable system-audio
+bars, install BlackHole and reboot:
+
+```sh
+brew install --cask blackhole-2ch
+```
+
+Create a macOS Multi-Output Device in **Audio MIDI Setup** containing your normal
+speakers/headphones and **BlackHole 2ch**. Set that Multi-Output Device as the
+macOS sound output so music is audible and the spectrum receives a copy. Then
+start the app normally:
+
+```sh
+open -a "Audio MIDI Setup"
+./macos_start.sh
+```
+
+For a direct spectrum-device override, set the AVFoundation index before starting:
+
+```sh
+export MUSIC_TERM_MAC_SPECTRUM_DEVICE='1'  # BlackHole 2ch in the AVFoundation device list
+./macos_start.sh
+```
+
+Sixel requires a Sixel-capable terminal as well as the renderer. `macos_setup.sh`
+installs the `libsixel` runtime and Python renderer. macOS Terminal may not
+display Sixel. Kitty uses its native renderer automatically; start explicitly
+with:
+
+```sh
+./macos_start.sh --artwork kitty
+```
+
+Sixel can be selected explicitly with `./macos_start.sh --artwork sixel` in a
+Sixel-capable terminal such as iTerm2 or WezTerm. Inside tmux, the launcher uses
+the color block fallback because Textual's injected Sixel image data can be
+dropped even when tmux reports passthrough support.
+
+`macos_start.sh` enables the required tmux passthrough automatically. If you
+start the app manually inside tmux, add this to `~/.tmux.conf`:
+
+```tmux
+set -g allow-passthrough all
+set -as terminal-features ',xterm-kitty:sixel'
+```
+
+### Fix later
+
+- [ ] Make Textual Sixel/Kitty artwork render reliably inside tmux. Sixel works
+  outside tmux; tmux currently uses the visible color-block fallback.
+
 I used codex to help me make this as having youtube open was too distracting and easy to access the short from videos so this is just for playing music.
 
 Run the commands below from the root of your cloned `music-term` repository
@@ -70,7 +138,7 @@ For explicit Windows Terminal image rendering:
 ```
 
 The default is `auto`. Use `-Artwork blocks` for the portable artwork fallback.
-Press **F11** in the player to cycle the available artwork modes. Click or drag
+Press **c** in the player to cycle the available artwork modes. Click or drag
 the volume slider below the spectrum to change volume.
 
 ### Other distributions and development setup
@@ -234,9 +302,9 @@ the playlist and restored at the next launch.
 | Click / drag volume slider | Set volume; blue is low, red is high |
 | Left / Right on volume slider | Lower / raise volume by 5% |
 | Home / End on volume slider | Set volume to 0% / 100% |
-| F11 | Cycle artwork rendering: Auto, Blocks and available graphics protocol |
-| F5 / F6 | Fewer / more spectrum bars, from 10 to 120 |
-| `e` | Open the equalizer |
+| c | Cycle artwork rendering: Auto, Blocks and available graphics protocol |
+| Ctrl+Plus / Ctrl+Minus | EQ+ / EQ−: adjust spectrum bars from 10 to 120 |
+| `e` / Ctrl+E | Open the equalizer; Ctrl+E also works while typing in search |
 | `l` | Open login settings |
 | Tab | Move between widgets |
 | `q` | Quit |
@@ -291,10 +359,12 @@ Other applications playing through the same output may also affect the bars.
 Bars clear when playback is paused or idle. PCM stays in memory and monitoring
 stops when the app exits. Restart after changing the default output device.
 
-The spectrum starts with 50 bars. F5/F6 adjust visual density only; the EQ always has ten bands. Additional bars
+The spectrum starts with 50 bars. EQ+/EQ− adjust visual density only; the EQ always has ten bands. Additional bars
 are grouped to fit narrow terminals. Online artwork comes from album/search
-thumbnails or YouTube video thumbnails; it is cached in memory, resized for the
-pane and fetched without saved authentication headers.
+thumbnails or YouTube video thumbnails. Local tracks also use conventional cover
+files beside the audio (`cover.jpg`, `folder.jpg`, `front.png`, `albumart.webp`).
+Artwork is cached in memory, resized for the pane and fetched without saved
+authentication headers.
 
 ### Higher-quality album artwork
 
@@ -309,7 +379,7 @@ terminal supports Sixel or Kitty graphics. Terminal detection happens before the
 UI starts; unsupported terminals and Python 3.11 retain the true-colour half-block
 fallback. Cached images resize locally without another download.
 
-Press **F11** to cycle Auto → Blocks → the detected graphics protocol, without
+Press **c** to cycle Auto → Blocks → the detected graphics protocol, without
 restarting or downloading the cover again. Only detected or explicitly requested
 protocols are offered; capability probing occurs before the UI starts. The
 current mode appears in the status line. The default is automatic detection. To choose a renderer from Ubuntu:
@@ -363,14 +433,14 @@ a first commit; no commit or remote push has been made.
 ## Troubleshooting
 
 - **Missing audio tools:** run `uv run music-term --check`. Playback needs mpv;
-  the spectrum needs FFmpeg, `pactl` and an accessible output monitor.
+  the spectrum needs FFmpeg and an accessible output monitor. On macOS, install and configure BlackHole 2ch.
 - **YouTube search/login fails:** check connectivity and paste a fresh successful
   browse request. The account banner reports whether lookup succeeded.
 - **YouTube stream fails:** update yt-dlp and check Deno availability. Regional,
   account and YouTube restrictions can make some streams unavailable.
 - **EQ unavailable:** the mpv build must include FFmpeg lavfi filter support;
   installing the FFmpeg executable alone does not change mpv's linked libraries.
-- **No spectrum:** check `pulseaudio-utils` and the PulseAudio compatibility service.
+- **No spectrum:** on Linux, check `pulseaudio-utils` and the PulseAudio compatibility service. On macOS, reboot after installing BlackHole 2ch and check the configured audio-device environment variables.
   Playback can still work without the visualizer.
 - **No local results:** check the chosen folder, supported extensions and access
   permissions, or submit an empty search to clear filtering.

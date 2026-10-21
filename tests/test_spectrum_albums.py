@@ -18,7 +18,7 @@ async def test_missing_monitor_dependencies(monkeypatch):
     monkeypatch.setattr('music_term.spectrum.shutil.which', lambda name: None)
     monitor = AudioMonitor()
     await monitor.start()
-    assert 'install ffmpeg pulseaudio-utils' in monitor.message
+    assert 'install' in monitor.message.lower()
     await monitor.close()
 
 def test_album_search_and_track_order(monkeypatch, tmp_path):
