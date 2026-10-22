@@ -1,13 +1,12 @@
 # music-term
 
-A terminal music player for Linux and Windows through WSL2 with YouTube Music search, local folder playback,
+A terminal music player for Linux, macOS and native Windows with YouTube Music search, local folder playback,
 album previews, a saved playlist, an audio spectrum and a ten-band equalizer.
 Requires Python 3.11 or newer. Environment and dependency management use **uv**.
 
-The application keeps its UI and music-service logic platform-neutral. Operating-system integrations live under
-`src/music_term/platform/`; the current macOS backend provides mpv playback over a Unix socket and an optional
-PulseAudio-compatible spectrum monitor. Linux and native Windows backends can be added there without coupling them
-to the UI.
+The UI and music-service logic are platform-neutral. Backends under
+`src/music_term/platform/` use named-pipe IPC and WASAPI on Windows, Unix-socket
+IPC and CoreAudio routing on macOS, and Unix-socket IPC/PulseAudio on Linux.
 
 ### macOS setup and start
 
@@ -80,140 +79,78 @@ open the clone folder and choose **Open in Terminal**.
 
 [Windows install](#install-on-windows) · [Windows start](#start-on-windows) · [Linux/macOS setup](#linux-and-macos-setup)
 
-## Windows setup (WSL2 Ubuntu)
+## Windows setup (native Windows)
 
-The current player uses mpv Unix-socket IPC and PulseAudio monitoring. **Native
-Windows Python playback is not implemented**; use WSL2 Ubuntu. Windows-side uv,
-mpv or FFmpeg installations are not used by this setup.
-
-Use Windows 11 or Windows 10 build 19044+ with updated WSL2/WSLg. See Microsoft's
-[WSLg prerequisites](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps)
-and [WSL installation guide](https://learn.microsoft.com/en-us/windows/wsl/install).
-WSLg supplies the Linux audio connection; actual playback and spectrum depend on
-that connection being available.
+The Windows launchers use Windows Python, mpv/FFmpeg and WASAPI audio directly.
+They do not launch WSL or import the macOS playback backend. Windows mpv IPC uses
+an asynchronous named pipe; the spectrum captures the default Windows speaker
+output with SoundCard/WASAPI loopback. Samples remain in memory.
 
 ### Install on Windows
 
-In **administrator PowerShell**, install WSL if it is not already available:
+From PowerShell in the project directory:
 
 ```powershell
-wsl --install -d Ubuntu
+.\win_setup.bat
 ```
 
-Restart if requested. Open Ubuntu once and finish creating your Linux user and
-password. For an existing installation, use `wsl --list --verbose` to check that
-Ubuntu uses version 2; update WSL with `wsl --update` when needed.
+Setup installs missing Windows Terminal, uv, mpv, FFmpeg and Deno using winget.
+App Installer from Microsoft Store must provide winget. Accept any Windows
+installer elevation prompt. uv installs Python 3.12 and locked dependencies,
+including NumPy, Pillow, textual-image and SoundCard, into `.venv-win`.
+Existing Windows tools on PATH are reused. If an installer cannot refresh PATH
+immediately, open a new terminal and rerun setup.
 
-Open **Windows Terminal → PowerShell** (ordinary user, not administrator), then
-install the application dependencies:
-
-```powershell
-.\setup.bat
-```
-
-You can also double-click `setup.bat` in File Explorer. Setup
-asks for your **Ubuntu sudo password**, installs Linux audio dependencies, installs
-uv through its [official installer](https://docs.astral.sh/uv/getting-started/installation/)
-when missing, and creates `.venv-wsl` with locked dependencies and Python 3.12.
-The Linux environment is separate from `.venv`, and both are ignored by Git.
-The wrappers use a process-scoped PowerShell execution-policy bypass; they do not
-change your saved execution policy.
+For development dependencies use `.\win_setup.bat -Dev`.
 
 ### Start on Windows
 
-From a PowerShell tab in Windows Terminal:
+```powershell
+.\win_start.bat
+```
+
+Optional flags:
 
 ```powershell
-.\start.bat
+.\win_start.bat -Artwork sixel
+.\win_start.bat --debug
+.\win_start.bat --test-artwork --debug
+powershell -NoProfile -ExecutionPolicy Bypass -File .\windows.ps1 -Mode check
 ```
 
-Or double-click `start.bat`. Run setup once; use start for subsequent launches.
-Keep this terminal open while listening and press `q` to quit. The start script
-runs the Linux player inside Ubuntu; you do not need to activate its environment.
+Debug is optional. Reproduce a failure, quit with `q`, then inspect the newest
+`tmp/music-term-debug-*.log`. Logs include dependency versions, backend names,
+yt-dlp/mpv errors and artwork diagnostics; URLs and credential headers are redacted.
+`--deugb` is accepted as an alias. The artwork test shows three coloured panels
+without network or the player UI.
 
-For explicit Windows Terminal image rendering:
+Use Windows Terminal 1.22+ for Sixel covers. In VS Code enable
+`terminal.integrated.enableImages` and set `terminal.integrated.gpuAcceleration`
+to `on`, then create a new terminal. Portable block artwork is available via
+`-Artwork blocks`. Press **c** to cycle available renderers.
 
-```powershell
-.\start.bat -Artwork sixel
-```
-
-The default is `auto`. Use `-Artwork blocks` for the portable artwork fallback.
-Press **c** in the player to cycle the available artwork modes. Click or drag
-the volume slider below the spectrum to change volume.
-
-### Other distributions and development setup
-
-For another Ubuntu distribution name or development dependencies:
-
-```powershell
-.\setup.bat -Distribution Ubuntu-24.04 -Dev
-.\start.bat -Distribution Ubuntu-24.04
-powershell -NoProfile -ExecutionPolicy Bypass -File .\windows.ps1 -Mode check -Distribution Ubuntu-24.04
-```
-
-Use the exact distribution name shown by `wsl --list --verbose`. Automatic
-package setup supports Ubuntu/Debian distributions. The check option checks mpv,
-FFmpeg and the PulseAudio connection; it does not prove live YouTube playback.
-
-### Start directly from Ubuntu
-
-Open an Ubuntu tab in Windows Terminal and navigate to your clone directory.
-From the repository root:
-
-```sh
-bash tools/windows-wsl.sh setup dev
-bash tools/windows-wsl.sh start
-```
-
-To run tests using the same environment:
-
-```sh
-export UV_PROJECT_ENVIRONMENT="$PWD/.venv-wsl"
-uv run --locked --extra dev pytest -q
-```
-
-The project's playlist remains in `tmp/playlist.json` alongside the source.
-Credentials live in the **Linux user's** config directory inside WSL. To open
-music files through Ctrl+O, use a relative path such as `./music` for a folder
-inside the clone. External Windows folders must use their WSL `/mnt/<drive>/...`
-path; pasted Windows drive paths do not work unchanged.
-Keep using the same distribution and Linux user to retain access to saved login
-credentials. As on Linux, choose **Copy as cURL (bash)** for the login request.
+Use native drive paths such as `C:\Music` in the folder picker. Credentials now
+belong to the Windows user under `~/.config/music-term` (or `XDG_CONFIG_HOME`).
+Earlier WSL credentials are not imported automatically; reconnect through the UI.
+The project playlist remains in `tmp/playlist.json`; re-add earlier `/mnt/...`
+local entries using their Windows paths. Online playlist entries are reusable.
 
 ### Windows troubleshooting
 
-For stream failures, run `start.bat --debug` (PowerShell launcher: `-Debug`).
-Reproduce the failure, quit with `q`, and inspect the newest
-`tmp/music-term-debug-*.log`. The log includes dependency versions, missing
-executables, yt-dlp errors and mpv end-file errors. URLs and credential header
-values are redacted. `--deugb` is also accepted as an alias.
+- **Missing tools:** rerun `win_setup.bat`; restart the terminal after PATH changes.
+- **No sound/spectrum:** check the default Windows speaker output and volume.
+  The spectrum follows the default output at launch; restart after changing devices.
+  No BlackHole, PulseAudio, WSLg or Stereo Mix setup is needed.
+- **YouTube stream errors:** run `win_start.bat --debug` and inspect its log.
+  Deno must be installed on Windows and visible on PATH.
+- **Blank Sixel:** run the standalone artwork test in the same terminal and check
+  the image settings above. A working Windows Terminal test isolates VS Code host
+  settings from the image renderer.
+- **Tests:** `uv run --project . --extra dev pytest -q` uses uv's default `.venv`;
+  set `$env:UV_PROJECT_ENVIRONMENT = "$PWD\.venv-win"` to test the launcher environment.
 
-For blank Sixel covers, run `start.bat --test-artwork --debug` in the same
-terminal. It reports detected support and displays red/green/blue panels without
-the player or network. If the panels appear, test the player with
-`start.bat -Artwork sixel --debug`; its log includes artwork and Sixel rendering
-diagnostics. If the panels are missing, check the terminal host: Windows Terminal
-1.22+ supports Sixel; legacy Windows Console does not.
-
-Setup checks/installs Windows Terminal when missing, installs the requested WSL
-distribution when missing, and updates WSL. Windows may require administrator
-PowerShell, a restart, and first-run Ubuntu user creation; rerun setup afterwards.
-Linux setup installs mpv, FFmpeg, PulseAudio tools, curl, CA certificates, unzip,
-uv, Deno, Python 3.12 and the locked Python dependencies (including artwork support).
-
-- **Ubuntu unavailable:** complete its first launch; check the name with
-  `wsl --list --verbose` and pass `-Distribution` if necessary.
-- **WSL1:** use `wsl --set-version Ubuntu 2` from Windows.
-- **No sound:** run the check option and `pactl info` inside Ubuntu. Update WSL,
-  reopen Ubuntu, and check Windows output volume/device. Do not start another
-  PulseAudio server over WSLg's connection.
-- **No spectrum:** an output monitor must be exposed by the WSL audio server.
-  Inspect `pactl list short sources` in Ubuntu. Playback can work without bars;
-  WSL loopback capture is not verified on every audio setup.
-- **YouTube stream errors:** rerun `setup.bat` to install Deno **inside Ubuntu**,
-  then use `start.bat --debug` if the stream still fails.
-- **Slow environment setup on /mnt/c:** a separate checkout in your Linux home
-  directory can be faster. Keep its playlist and credentials out of source control.
+The optional legacy `tools/windows-wsl.sh` helper is retained for existing Linux
+checkouts, but is not used by either Windows batch launcher.
 
 ## Linux and macOS setup
 
@@ -371,9 +308,11 @@ saved legacy cookie file if present. The login dialog only accepts copied cURL.
 
 ## Spectrum, artwork and equalizer
 
-The spectrum analyzes speaker output using FFmpeg and NumPy FFT. It selects the
-default output monitor through `pactl`, supporting PulseAudio and PipeWire's
-PulseAudio compatibility service. It does not select the default microphone.
+The spectrum analyzes speaker output with NumPy FFT. Windows uses native WASAPI
+speaker loopback via SoundCard. Linux uses FFmpeg and the default output monitor
+selected through `pactl`, supporting PulseAudio and PipeWire-Pulse. macOS uses
+FFmpeg/AVFoundation with the configured BlackHole device. It does not select
+the default microphone.
 Other applications playing through the same output may also affect the bars.
 Bars clear when playback is paused or idle. PCM stays in memory and monitoring
 stops when the app exits. Restart after changing the default output device.
@@ -404,7 +343,7 @@ protocols are offered; capability probing occurs before the UI starts. The
 current mode appears in the status line. The default is automatic detection. To choose a renderer from Ubuntu:
 
 ```sh
-export UV_PROJECT_ENVIRONMENT="$PWD/.venv-wsl"  # Windows WSL setup only
+export UV_PROJECT_ENVIRONMENT="$PWD/.venv"  # Linux/macOS
 uv run --locked music-term --artwork auto
 uv run --locked music-term --artwork sixel
 uv run --locked music-term --artwork blocks
@@ -413,8 +352,8 @@ uv run --locked music-term --artwork blocks
 For the Windows launcher, set the override in PowerShell before starting:
 
 ```powershell
-.\start.bat -Artwork sixel
-# Or: $env:MUSIC_TERM_ARTWORK = 'sixel'; .\start.bat
+.\win_start.bat -Artwork sixel
+# Or: $env:MUSIC_TERM_ARTWORK = 'sixel'; .\win_start.bat
 ```
 
 Use `auto` normally; force `sixel` only on a compatible terminal. `kitty` selects
@@ -452,7 +391,8 @@ a first commit; no commit or remote push has been made.
 ## Troubleshooting
 
 - **Missing audio tools:** run `uv run music-term --check`. Playback needs mpv;
-  the spectrum needs FFmpeg and an accessible output monitor. On macOS, install and configure BlackHole 2ch.
+  the spectrum needs an accessible output monitor (native WASAPI on Windows,
+  FFmpeg on Linux/macOS). On macOS, install and configure BlackHole 2ch.
 - **YouTube search/login fails:** check connectivity and paste a fresh successful
   browse request. The account banner reports whether lookup succeeded.
 - **YouTube stream fails:** update yt-dlp and check Deno availability. Regional,

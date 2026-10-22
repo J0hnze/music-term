@@ -31,7 +31,9 @@ def analyze(pcm: bytes, bars: int = 10) -> list[float]:
         levels.append(float(np.clip((db + 70) / 65, 0, 1)))
     return levels
 
-if sys.platform == 'darwin':
+if sys.platform == 'win32':
+    from .platform.windows_audio import AudioMonitor
+elif sys.platform == 'darwin':
     from .platform.macos_audio import AudioMonitor
 else:
     from .platform.linux_audio import AudioMonitor

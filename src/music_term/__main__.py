@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from .player import dependencies
 
 def main() -> None:
@@ -21,7 +22,11 @@ def main() -> None:
         return
     if args.check:
         missing = dependencies()
-        print("Missing: " + ", ".join(missing) + ". Install: sudo apt install mpv ffmpeg" if missing else "mpv and FFmpeg available")
+        install = 'run win_setup.bat' if sys.platform == 'win32' else 'install mpv and FFmpeg with your package manager'
+        print('Missing: ' + ', '.join(missing) + '. ' + install if missing else 'mpv and FFmpeg available')
+        from .player import Player
+        from .spectrum import AudioMonitor
+        print(f'Playback backend: {Player.__module__}; spectrum: {AudioMonitor.__module__}')
         raise SystemExit(1 if missing else 0)
     from .artwork import configure_renderer
     try:

@@ -88,3 +88,13 @@ thread with a UI timeout; no live account request was made during tests.
 - D removes the selected row only when the playlist is focused. Ctrl+C clears outside inputs/dialogs and does not quit. Saved state updates after either action.
 - Active-track removal and clear stop mpv playback; other deletion preserves current-track indexing and shuffle order. Pending album/play work is cancelled on clear.
 - Seventeen queue/UI tests passed, including keyboard guards, current-track deletion, empty saved state and shuffle-index remapping.
+
+## Native Windows migration — 22 October 2026
+
+- Renamed launchers to win_setup.bat and win_start.bat; replaced the PowerShell WSL entry point with native Windows tool installation and .venv-win.
+- Native player uses Windows mpv WASAPI and asynchronous named-pipe IPC. Shared protocol code lives in mpv_player.py; macOS has its own CoreAudio wrapper. Native Windows never imports macos_player.
+- Windows spectrum uses SoundCard WASAPI speaker loopback; live tone playback/capture succeeded with FFT peak 0.637. No WSLg/PulseAudio or Mac virtual audio device is used.
+- Native setup completed successfully using installed Windows tools; native dependency/backend check passed. Fresh-machine winget installation was not exercised.
+- Native Windows suite: 45 passed, 2 Unix-transport tests skipped. Linux suite: 46 passed, 1 Windows integration test skipped. Native named-pipe integration, volume commands and error handling passed.
+- Source-only packaging passed: 43 allowlisted files, including the new native backends, diagnostics and launchers; no local state, logs or environments included.
+- Native Sixel appearance in an interactive terminal still needs user confirmation; the standalone test is available through win_start.bat --test-artwork.

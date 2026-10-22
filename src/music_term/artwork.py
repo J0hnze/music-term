@@ -42,7 +42,7 @@ def fetch_artwork(track: Track) -> bytes | None:
     url = artwork_url(track)
     if not url:
         return None
-    if not urlparse(url).scheme:
+    if urlparse(url).scheme not in {'http', 'https'}:
         try:
             local_path = Path(url).expanduser()
             if not local_path.is_file():

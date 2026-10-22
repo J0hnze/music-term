@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import json
 import os
@@ -34,12 +35,15 @@ def test_credentials(tmp_path, monkeypatch):
     source.write_text(json.dumps({'cookie': 'FAKE_TEST_ONLY', 'authorization': 'FAKE_TEST_ONLY'}))
     credentials.import_file('browser', str(source))
     assert config_dir() == tmp_path / 'config' / 'music-term'
-    assert config_dir().stat().st_mode & 0o777 == 0o700
-    assert credentials.path('browser').stat().st_mode & 0o777 == 0o600
+    if sys.platform != 'win32':
+        assert config_dir().stat().st_mode & 0o777 == 0o700
+    if sys.platform != 'win32':
+        assert credentials.path('browser').stat().st_mode & 0o777 == 0o600
     cookies = tmp_path / 'input.txt'
     cookies.write_text('# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\ttest\tFAKE_TEST_ONLY\n')
     credentials.import_file('cookies', str(cookies))
-    assert credentials.path('cookies').stat().st_mode & 0o777 == 0o600
+    if sys.platform != 'win32':
+        assert credentials.path('cookies').stat().st_mode & 0o777 == 0o600
     credentials.disconnect()
     assert credentials.path('browser') is None and credentials.path('cookies') is None
     assert source.exists()
@@ -49,6 +53,7 @@ def test_credentials(tmp_path, monkeypatch):
 
 def test_relative_config_falls_back(tmp_path, monkeypatch):
     monkeypatch.setenv('HOME', str(tmp_path))
+    monkeypatch.setenv('USERPROFILE', str(tmp_path))
     monkeypatch.setenv('XDG_CONFIG_HOME', 'relative')
     assert config_dir() == tmp_path / '.config' / 'music-term'
 
@@ -64,6 +69,7 @@ def test_queue():
     assert queue.next() is None and queue.index == 2
     assert queue.select(99) is None
 
+@pytest.mark.skipif(sys.platform == 'win32', reason='Unix-socket transport; Windows pipe tested separately')
 async def test_ipc_correlates_events_and_responses(tmp_path):
     async def serve(reader, writer):
         request = json.loads(await reader.readline())
@@ -98,6 +104,7 @@ async def test_missing_mpv(monkeypatch):
     with pytest.raises(RuntimeError, match='mpv is missing'):
         await Player().start()
 
+@pytest.mark.skipif(sys.platform == 'win32', reason='Unix-socket transport; Windows pipe tested separately')
 async def test_ipc_rejection(tmp_path):
     async def serve(reader, writer):
         request = json.loads(await reader.readline())

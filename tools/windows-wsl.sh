@@ -35,10 +35,10 @@ if [[ "$mode" == setup ]]; then
     if ! pactl info >/dev/null 2>&1; then
         echo "Audio server unavailable. Check WSLg, run wsl --update from Windows, and reopen Ubuntu."
     fi
-    echo "Setup complete. Run start.bat or windows.ps1 -Mode start."
+    echo "Legacy WSL setup complete. Run bash tools/windows-wsl.sh start. Windows batch launchers now use native Windows."
 else
     if ! command -v uv >/dev/null || [[ ! -d "$UV_PROJECT_ENVIRONMENT" ]]; then
-        echo "Run setup.bat first (or windows.ps1 -Mode setup)." >&2
+        echo "Run bash tools/windows-wsl.sh setup first for this legacy WSL environment." >&2
         exit 1
     fi
     if [[ "$mode" == check ]]; then

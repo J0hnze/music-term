@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 import pytest
 from music_term.queue import Queue, Track
@@ -34,8 +35,10 @@ def test_playlist_roundtrip_and_permissions(tmp_path):
     restored = load_playlist(path)
     assert restored.tracks == queue.tracks and restored.index == 3
     assert restored.shuffle and restored.repeat == 'all'
-    assert path.stat().st_mode & 0o777 == 0o600
-    assert path.parent.stat().st_mode & 0o777 == 0o700
+    if sys.platform != 'win32':
+        assert path.stat().st_mode & 0o777 == 0o600
+    if sys.platform != 'win32':
+        assert path.parent.stat().st_mode & 0o777 == 0o700
     path.write_text('{broken')
     with pytest.raises(ValueError, match='invalid'): load_playlist(path)
 

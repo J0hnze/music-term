@@ -416,6 +416,7 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pillow" },
+    { name = "soundcard", marker = "sys_platform == 'win32'" },
     { name = "textual" },
     { name = "textual-image", marker = "python_full_version >= '3.12'" },
     { name = "yt-dlp", extra = ["default"] },
@@ -434,6 +435,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=11,<14" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
+    { name = "soundcard", marker = "sys_platform == 'win32'", specifier = ">=0.4.5,<0.5" },
     { name = "textual", specifier = ">=1.0,<7" },
     { name = "textual-image", marker = "python_full_version >= '3.12'", specifier = ">=0.14,<0.15" },
     { name = "yt-dlp", extras = ["default"], specifier = ">=2025.1" },
@@ -833,6 +835,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c0/8f/0722ca900cc807c13a6a0c696dacf35430f72e0ec571c4275d2371fca3e9/rich-15.0.0.tar.gz", hash = "sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36", size = 230680, upload-time = "2026-04-12T08:24:00.75Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb", size = 310654, upload-time = "2026-04-12T08:24:02.83Z" },
+]
+
+[[package]]
+name = "soundcard"
+version = "0.4.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cffi" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f5/ef/85322a77399b19b23bd741ad57d86677687cdf9c9d9bc01997bc6bf9d30d/soundcard-0.4.6.tar.gz", hash = "sha256:9b46d64a26f97cd7d88bcfc385c97c069f97c5ec3404e4e7c23771598a8cf47b", size = 40830, upload-time = "2026-04-12T13:46:24.743Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4c/be/eb381e700a61b4ce899e14850d7ae78f9600fd2f8b58b4c52b8714e81917/soundcard-0.4.6-py3-none-any.whl", hash = "sha256:ab44b8c1033ac6ec49c5d618ce096dab9b60c7d7a427c92bef15856e5ebb3e09", size = 43939, upload-time = "2026-04-12T13:46:23.224Z" },
 ]
 
 [[package]]

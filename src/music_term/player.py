@@ -1,6 +1,12 @@
-"""Compatibility facade for the active macOS/mpv playback backend."""
+"""Select native playback for the current operating system."""
 import shutil
+import sys
 
-from .platform.macos_player import Player, dependencies
+if sys.platform == 'win32':
+    from .platform.windows_player import Player, dependencies
+elif sys.platform == 'darwin':
+    from .platform.macos_player import Player, dependencies
+else:
+    from .platform.mpv_player import Player, dependencies
 
 __all__ = ["Player", "dependencies"]

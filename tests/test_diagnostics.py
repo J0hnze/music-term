@@ -27,4 +27,5 @@ def test_remote_artwork_never_checks_url_as_local_path(monkeypatch):
 def test_linux_monitor_selected():
     import sys
     from music_term.spectrum import AudioMonitor
-    assert AudioMonitor.__module__ == ('music_term.platform.macos_audio' if sys.platform == 'darwin' else 'music_term.platform.linux_audio')
+    expected = {'darwin': 'macos_audio', 'win32': 'windows_audio'}.get(sys.platform, 'linux_audio')
+    assert AudioMonitor.__module__ == 'music_term.platform.' + expected

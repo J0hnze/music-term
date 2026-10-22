@@ -15,6 +15,18 @@ def test_spectrum_silence_and_sine():
     with pytest.raises(ValueError): analyze(b'')
 
 async def test_missing_monitor_dependencies(monkeypatch):
+    import sys
+    import asyncio
+    if sys.platform == 'win32':
+        monkeypatch.setitem(sys.modules, 'soundcard', None)
+        monitor = AudioMonitor()
+        await monitor.start()
+        try:
+            await asyncio.wait_for(monitor.task, 3)
+            assert 'unavailable' in monitor.message.lower()
+        finally:
+            await monitor.close()
+        return
     monkeypatch.setattr('music_term.spectrum.shutil.which', lambda name: None)
     monitor = AudioMonitor()
     await monitor.start()

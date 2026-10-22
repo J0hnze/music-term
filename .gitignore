@@ -58,3 +58,4 @@ htmlcov/
 
 # Linux environment used by the Windows WSL launcher
 .venv-wsl/
+.venv-win/
