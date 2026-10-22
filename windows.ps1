@@ -37,10 +37,11 @@ try {
         Install-Tool 'mpv' 'shinchiro.mpv'
         Install-Tool 'ffmpeg' 'Gyan.FFmpeg'
         Install-Tool 'deno' 'DenoLand.Deno'
-        $syncArgs = @('sync', '--locked', '--python', '3.12')
+        # Preserve optional dev tools already installed in this environment.
+        $syncArgs = @('sync', '--locked', '--inexact', '--python', '3.12')
         if ($Dev) { $syncArgs += @('--extra', 'dev') }
         & uv.exe @syncArgs
-        if ($LASTEXITCODE -ne 0) { throw 'Python dependency installation failed.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Python dependency installation failed. If Windows reports a file in use, close the player and tests using .venv-win, then rerun win_setup.bat.' }
     } elseif (-not (Get-Command uv.exe -ErrorAction SilentlyContinue) -or -not (Test-Path -LiteralPath "$env:UV_PROJECT_ENVIRONMENT\Scripts\python.exe")) {
         throw 'Run win_setup.bat first to install the native Windows environment.'
     }
