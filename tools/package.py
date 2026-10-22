@@ -11,6 +11,7 @@ FILES = [
     'src/music_term/__init__.py', 'src/music_term/__main__.py',
     'src/music_term/platform/__init__.py', 'src/music_term/platform/mpv_player.py',
     'src/music_term/platform/windows_player.py', 'src/music_term/platform/windows_audio.py',
+    'src/music_term/platform/windows_input.py',
     'src/music_term/platform/linux_audio.py', 'src/music_term/platform/macos_player.py', 'src/music_term/platform/macos_audio.py',
     'src/music_term/diagnostics.py',
     'src/music_term/local.py', 'src/music_term/state.py', 'src/music_term/terminal.py', 'src/music_term/auth.py', 'src/music_term/eq.py', 'src/music_term/player.py',

@@ -53,3 +53,25 @@ async def test_windows_loopback_mixes_channels_and_stops(monkeypatch):
     await asyncio.wait_for(monitor.task, 3)
     assert max(monitor.levels) > .6 and not monitor.message
     await monitor.close()
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows console input records')
+def test_synthetic_mouse_records_are_not_search_keystrokes():
+    from music_term.platform.windows_input import key_character
+    from textual._xterm_parser import XTermParser
+    from textual.events import Key, MouseMove
+    parser = XTermParser()
+    output = []
+    # ConPTY may tag ESC with a control modifier and virtual-key zero.
+    for char in '\x1b[<35;46;23M':
+        record = SimpleNamespace(bKeyDown=True, dwControlKeyState=8,
+            wVirtualKeyCode=0, uChar=SimpleNamespace(UnicodeChar=char))
+        output.extend(parser.feed(key_character(record)))
+    assert len(output) == 1 and isinstance(output[0], MouseMove)
+    assert not any(isinstance(event, Key) for event in output)
+    assert output[0].x == 45 and output[0].y == 22
+    null = SimpleNamespace(bKeyDown=True, uChar=SimpleNamespace(UnicodeChar='\x00'))
+    assert key_character(null) == ''
+    from music_term.ui import MusicApp
+    from music_term.platform.windows_input import NativeWindowsDriver
+    assert MusicApp().driver_class is NativeWindowsDriver

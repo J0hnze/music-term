@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from pathlib import Path
 from textual import work, events
 from textual.app import App, ComposeResult
@@ -188,7 +189,11 @@ class MusicApp(App):
                 ("c", "artwork_mode", "Cover style"), ("j", "fewer_bars", "EQ-"), ("k", "more_bars", "EQ+"), ("s", "shuffle", "Shuffle"), ("r", "repeat", "Repeat"), ("n", "next", "Next"), ("p", "previous", "Previous"), Binding("ctrl+e", "eq", "EQ", priority=True), ("e", "eq", "EQ"),
                 ("l", "login", "Login"), ("q", "quit", "Quit")]
     def __init__(self) -> None:
-        super().__init__()
+        if sys.platform == 'win32':
+            from .platform.windows_input import NativeWindowsDriver
+            super().__init__(driver_class=NativeWindowsDriver)
+        else:
+            super().__init__()
         self.credentials = Credentials()
         self.service = MusicService(self.credentials)
         self.player = Player()
