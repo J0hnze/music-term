@@ -1,6 +1,7 @@
 """Asynchronous, request-correlated mpv JSON IPC on a private Unix socket."""
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -45,6 +46,8 @@ class Player:
                 self.reader, self.writer = await asyncio.open_unix_connection(str(self.socket))
                 self.socket.chmod(0o600)
                 self.task = asyncio.create_task(self._read())
+                if logging.getLogger('music_term').isEnabledFor(logging.DEBUG):
+                    await self.command('request_log_messages', 'warn')
                 return
             except (FileNotFoundError, ConnectionRefusedError):
                 await asyncio.sleep(0.05)
@@ -58,6 +61,11 @@ class Player:
                 if future and not future.done():
                     future.set_result(message)
                 elif "event" in message:
+                    if message['event'] == 'log-message':
+                        logging.getLogger(__name__).warning('mpv %s: %s', message.get('prefix'), message.get('text', '').strip())
+                        continue
+                    if message['event'] == 'end-file':
+                        logging.getLogger(__name__).info('mpv end-file: reason=%s error=%s', message.get('reason'), message.get('file_error') or message.get('error'))
                     await self.events.put(message)
         finally:
             for future in self.pending.values():
@@ -76,6 +84,7 @@ class Player:
             await self.writer.drain()
             result = await asyncio.wait_for(future, 5)
             if result.get("error") != "success":
+                logging.getLogger(__name__).error('mpv command %s failed: %s', args[0], result.get('error'))
                 raise RuntimeError("mpv rejected the command. Check audio output or FFmpeg filter support.")
             return result.get("data")
         except (TimeoutError, ConnectionError, OSError):

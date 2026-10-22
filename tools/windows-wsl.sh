@@ -3,6 +3,7 @@ set -euo pipefail
 mode="${1:-start}"
 dev="${2:-runtime}"
 export MUSIC_TERM_ARTWORK="${3:-${MUSIC_TERM_ARTWORK:-auto}}"
+if [[ "${4:-normal}" == debug ]]; then export MUSIC_TERM_DEBUG=1; fi
 case "$MUSIC_TERM_ARTWORK" in auto|blocks|sixel|kitty) ;; *) echo "Unknown artwork renderer" >&2; exit 2 ;; esac
 case "$mode" in setup|start|check) ;; *) echo "Unknown mode: $mode" >&2; exit 2 ;; esac
 if [[ "$(uname -r)" != *microsoft-standard* && "$(uname -r)" != *WSL2* ]]; then
@@ -11,7 +12,7 @@ if [[ "$(uname -r)" != *microsoft-standard* && "$(uname -r)" != *WSL2* ]]; then
 fi
 project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd -- "$project_dir"
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.deno/bin:$PATH"
 # Keep Linux executables separate from any native Windows Python environment.
 export UV_PROJECT_ENVIRONMENT="$project_dir/.venv-wsl"
 if [[ "$mode" == setup ]]; then
@@ -20,9 +21,12 @@ if [[ "$mode" == setup ]]; then
         exit 1
     fi
     sudo apt-get update
-    sudo apt-get install -y mpv ffmpeg pulseaudio-utils curl ca-certificates
+    sudo apt-get install -y mpv ffmpeg pulseaudio-utils curl ca-certificates unzip
     if ! command -v uv >/dev/null; then
         curl -LsSf https://astral.sh/uv/install.sh | sh
+    fi
+    if ! command -v deno >/dev/null; then
+        curl -fsSL https://deno.land/install.sh | sh -s -- -y
     fi
     args=(sync --locked --python 3.12)
     if [[ "$dev" == dev ]]; then args+=(--extra dev); fi
@@ -40,7 +44,13 @@ else
     if [[ "$mode" == check ]]; then
         uv run --locked music-term --check
         pactl info
+        pactl list short sources
+        uv run --locked python -c 'from PIL import Image; from textual_image.widget import SixelImage; print("Artwork dependencies available")'
+        deno --version
     else
+        if [[ "${5:-player}" == test-artwork ]]; then
+            exec uv run --locked music-term --test-artwork
+        fi
         exec uv run --locked music-term
     fi
 fi

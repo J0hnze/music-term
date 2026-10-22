@@ -185,7 +185,7 @@ class MusicApp(App):
     .band Select { width: 1fr; }
     """
     BINDINGS = [Binding("ctrl+c", "clear_playlist", "Clear playlist", priority=True), ("d", "delete_playlist_item", "Delete item"), Binding("ctrl+m", "switch_mode", "Local/Online", priority=True), Binding("ctrl+o", "open_folder", "Open folder", priority=True), ("/", "search", "Search"), ("a", "add", "Add"), ("b", "album", "Add album"), Binding("space", "pause", "Play/Pause", priority=True),
-                ("c", "artwork_mode", "Cover style"), ("ctrl+minus", "fewer_bars", "EQ-"), ("ctrl+plus", "more_bars", "EQ+"), ("s", "shuffle", "Shuffle"), ("r", "repeat", "Repeat"), ("n", "next", "Next"), ("p", "previous", "Previous"), Binding("ctrl+e", "eq", "EQ", priority=True), ("e", "eq", "EQ"),
+                ("c", "artwork_mode", "Cover style"), ("j", "fewer_bars", "EQ-"), ("k", "more_bars", "EQ+"), ("s", "shuffle", "Shuffle"), ("r", "repeat", "Repeat"), ("n", "next", "Next"), ("p", "previous", "Previous"), Binding("ctrl+e", "eq", "EQ", priority=True), ("e", "eq", "EQ"),
                 ("l", "login", "Login"), ("q", "quit", "Quit")]
     def __init__(self) -> None:
         super().__init__()
@@ -591,9 +591,15 @@ class MusicApp(App):
         self.status(f"Artwork mode: {mode} • c switches cover style")
 
     def update_artwork_mode_label(self, state: str | None = None) -> None:
-        mode = self.query_one('#artwork', Artwork).mode.title()
+        # A cover download can finish while the screen is being unmounted.
+        if not self.query('#artwork') or not self.query('#artwork-mode'):
+            return
+        mode = self.query_one('#artwork', Artwork).renderer_label
         suffix = f" • {state}" if state else ""
         self.query_one('#artwork-mode', Static).update(f"Cover mode: {mode}{suffix}")
+
+    def on_artwork_renderer_changed(self, event: Artwork.RendererChanged) -> None:
+        self.update_artwork_mode_label()
 
     def action_fewer_bars(self) -> None:
         self.monitor.bar_count = max(10, self.monitor.bar_count - 10)

@@ -182,6 +182,25 @@ credentials. As on Linux, choose **Copy as cURL (bash)** for the login request.
 
 ### Windows troubleshooting
 
+For stream failures, run `start.bat --debug` (PowerShell launcher: `-Debug`).
+Reproduce the failure, quit with `q`, and inspect the newest
+`tmp/music-term-debug-*.log`. The log includes dependency versions, missing
+executables, yt-dlp errors and mpv end-file errors. URLs and credential header
+values are redacted. `--deugb` is also accepted as an alias.
+
+For blank Sixel covers, run `start.bat --test-artwork --debug` in the same
+terminal. It reports detected support and displays red/green/blue panels without
+the player or network. If the panels appear, test the player with
+`start.bat -Artwork sixel --debug`; its log includes artwork and Sixel rendering
+diagnostics. If the panels are missing, check the terminal host: Windows Terminal
+1.22+ supports Sixel; legacy Windows Console does not.
+
+Setup checks/installs Windows Terminal when missing, installs the requested WSL
+distribution when missing, and updates WSL. Windows may require administrator
+PowerShell, a restart, and first-run Ubuntu user creation; rerun setup afterwards.
+Linux setup installs mpv, FFmpeg, PulseAudio tools, curl, CA certificates, unzip,
+uv, Deno, Python 3.12 and the locked Python dependencies (including artwork support).
+
 - **Ubuntu unavailable:** complete its first launch; check the name with
   `wsl --list --verbose` and pass `-Distribution` if necessary.
 - **WSL1:** use `wsl --set-version Ubuntu 2` from Windows.
@@ -191,8 +210,8 @@ credentials. As on Linux, choose **Copy as cURL (bash)** for the login request.
 - **No spectrum:** an output monitor must be exposed by the WSL audio server.
   Inspect `pactl list short sources` in Ubuntu. Playback can work without bars;
   WSL loopback capture is not verified on every audio setup.
-- **YouTube stream errors:** install Deno **inside Ubuntu**, using the official
-  instructions linked above; Windows-installed Deno is not the intended runtime.
+- **YouTube stream errors:** rerun `setup.bat` to install Deno **inside Ubuntu**,
+  then use `start.bat --debug` if the stream still fails.
 - **Slow environment setup on /mnt/c:** a separate checkout in your Linux home
   directory can be faster. Keep its playlist and credentials out of source control.
 
@@ -303,7 +322,7 @@ the playlist and restored at the next launch.
 | Left / Right on volume slider | Lower / raise volume by 5% |
 | Home / End on volume slider | Set volume to 0% / 100% |
 | c | Cycle artwork rendering: Auto, Blocks and available graphics protocol |
-| Ctrl+Plus / Ctrl+Minus | EQ+ / EQ−: adjust spectrum bars from 10 to 120 |
+| k / j | EQ+ / EQ−: adjust spectrum bars from 10 to 120 |
 | `e` / Ctrl+E | Open the equalizer; Ctrl+E also works while typing in search |
 | `l` | Open login settings |
 | Tab | Move between widgets |

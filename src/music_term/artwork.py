@@ -2,11 +2,13 @@
 from io import BytesIO
 from pathlib import Path
 import re
+import logging
 from urllib.parse import urlparse, parse_qs
 import requests
 from PIL import Image, ImageOps
 from rich.text import Text
 from textual.widgets import Static
+from textual.message import Message
 from .queue import Track
 
 def artwork_url(track: Track) -> str | None:
@@ -40,9 +42,11 @@ def fetch_artwork(track: Track) -> bytes | None:
     url = artwork_url(track)
     if not url:
         return None
-    local_path = Path(url).expanduser()
-    if local_path.is_file():
+    if not urlparse(url).scheme:
         try:
+            local_path = Path(url).expanduser()
+            if not local_path.is_file():
+                return None
             if local_path.stat().st_size > 5_000_000:
                 return None
             return local_path.read_bytes()
@@ -79,6 +83,23 @@ RENDERER_MODE = 'auto'
 RENDERERS = {'auto': None, 'blocks': None}
 
 
+def test_sixel() -> None:
+    """Exercise the terminal without downloads or Textual's compositor."""
+    from rich.console import Console
+    from textual_image.renderable import SixelImage
+    from textual_image._terminal import probe_terminal
+    console = Console()
+    capabilities = probe_terminal()
+    logging.getLogger(__name__).info('Sixel test terminal capabilities: %s', capabilities)
+    console.print(f'Terminal reports Sixel: {capabilities.sixel}; cell size: {capabilities.cell_size}')
+    console.print('Three coloured panels should appear below: red, green, blue.')
+    image = Image.new('RGB', (240, 80))
+    for index, color in enumerate(('red', 'green', 'blue')):
+        image.paste(color, (index * 80, 0, (index + 1) * 80, 80))
+    console.print(SixelImage(image, width=30, height=5))
+    console.print('End of Sixel test.')
+
+
 def configure_renderer(mode: str = 'auto') -> None:
     """Probe graphics before Textual starts its input thread; blocks stay portable."""
     import sys
@@ -88,12 +109,13 @@ def configure_renderer(mode: str = 'auto') -> None:
     IMAGE_WIDGET = None
     RENDERER_MODE = mode
     RENDERERS = {'auto': None, 'blocks': None}
-    if not sys.stdout.isatty() and mode in {'auto', 'blocks'}:
+    if mode == 'blocks' or (not sys.stdout.isatty() and mode == 'auto'):
         return
     try:
         from textual_image.widget import Image as AutoImage, SixelImage, TGPImage
         from textual_image.renderable import Image as AutoRenderable
         detected = AutoRenderable.__module__.rsplit('.', 1)[-1]
+        logging.getLogger(__name__).info('Artwork requested=%s detected=%s stdout_tty=%s', mode, detected, sys.stdout.isatty())
         if detected in {'sixel', 'tgp'}:
             RENDERERS['auto'] = AutoImage
             RENDERERS['sixel' if detected == 'sixel' else 'kitty'] = SixelImage if detected == 'sixel' else TGPImage
@@ -112,12 +134,26 @@ def configure_renderer(mode: str = 'auto') -> None:
 
 class Artwork(Static):
     """Resize cached artwork locally without fetching it again."""
+    class RendererChanged(Message):
+        pass
+
+    @property
+    def renderer_label(self) -> str:
+        if self.renderer_error:
+            return f'{self.mode.title()} → Blocks ({self.renderer_error})'
+        if self.graphics is None:
+            return 'Auto → Blocks' if self.mode == 'auto' else self.mode.title()
+        module = type(self.graphics).__module__.rsplit('.', 1)[-1]
+        active = {'sixel': 'Sixel', 'tgp': 'Kitty'}.get(module, self.mode.title())
+        return f'Auto → {active}' if self.mode == 'auto' else active
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         import asyncio
         self.mode = RENDERER_MODE
         self.renderers = dict(RENDERERS)
         self.switch_lock = asyncio.Lock()
+        self.renderer_error = ''
         self.graphics = IMAGE_WIDGET(id="artwork-image", on_error=self.graphics_error) if IMAGE_WIDGET else None
         self.data: bytes | None = None
         self.message = "No album art"
@@ -135,6 +171,7 @@ class Artwork(Static):
             modes = list(self.renderers)
             index = modes.index(self.mode) if self.mode in modes else -1
             self.mode = modes[(index + 1) % len(modes)]
+            self.renderer_error = ''
             previous = self.graphics
             self.graphics = None
             if previous:
@@ -150,11 +187,16 @@ class Artwork(Static):
             return self.mode
 
     def graphics_error(self, error):
-        self.graphics.display = False
+        logging.getLogger(__name__).error('Artwork renderer failed: %s', error)
+        self.renderer_error = str(error).replace('\n', ' ')[:100] or type(error).__name__
+        if self.graphics is not None:
+            self.graphics.display = False
+        self.post_message(self.RendererChanged())
         self.refresh()
         return Static('')
 
     def show_data(self, data: bytes | None, message: str = '') -> None:
+        logging.getLogger(__name__).debug('Artwork update: mode=%s bytes=%s renderer=%s', self.mode, len(data or b''), type(self.graphics).__module__ if self.graphics is not None else 'blocks')
         self.data = data
         self.message = message
         self.cached_size = (0, 0)
@@ -168,8 +210,9 @@ class Artwork(Static):
                         image = ImageOps.exif_transpose(source).convert('RGB')
                 self.graphics.image = image
                 self.graphics.display = image is not None
-            except (OSError, ValueError):
-                self.graphics.display = False
+            except (OSError, ValueError) as error:
+                logging.getLogger(__name__).exception('Artwork image could not be loaded')
+                self.graphics_error(error)
         self.refresh()
 
     def render(self) -> Text:

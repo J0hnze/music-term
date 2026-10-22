@@ -1,6 +1,7 @@
 """Real output-monitor spectrum; PCM is analyzed in memory and never saved."""
 import colorsys
 import shutil
+import sys
 import numpy as np
 from rich.text import Text
 from textual.widgets import Static
@@ -30,7 +31,10 @@ def analyze(pcm: bytes, bars: int = 10) -> list[float]:
         levels.append(float(np.clip((db + 70) / 65, 0, 1)))
     return levels
 
-from .platform.macos_audio import AudioMonitor
+if sys.platform == 'darwin':
+    from .platform.macos_audio import AudioMonitor
+else:
+    from .platform.linux_audio import AudioMonitor
 
 class Spectrum(Static):
     """Centred spectrum meter; width follows terminal resizing."""
@@ -47,19 +51,20 @@ class Spectrum(Static):
         if count < len(levels):
             levels = [max(chunk) for chunk in np.array_split(levels, count)]
         width = max(1, self.content_size.width // count)
-        left_padding = (self.content_size.width - count * width) // 2
+        gap = 1 if width > 1 else 0
+        # The last bar has no trailing gap: centre the visible bars themselves.
+        left_padding = (self.content_size.width - (count * width - gap)) // 2
         rows = max(1, self.content_size.height - 2)
         heights = [round(max(0.0, min(1.0, level)) * rows) if active else 0 for level in levels]
-        heading = Text(f'Audio spectrum • {len(levels)} bars • EQ− / EQ+ • e: EQ', style='cyan')
+        heading = Text(f'Audio spectrum • {len(levels)} bars • j: EQ− / k: EQ+ • e: EQ', style='cyan')
         heading.truncate(self.content_size.width)
         output = Text(' ' * max(0, (self.content_size.width - heading.cell_len) // 2))
         output.append_text(heading)
         output.append('\n')
-        gap = 1 if width > 1 else 0
         for row in range(rows, 0, -1):
             output.append(" " * left_padding)
-            for height in heights:
-                output.append(('█' * max(1, width - gap) if height >= row else ' ' * max(1, width - gap)) + (' ' if gap else ''),
+            for index, height in enumerate(heights):
+                output.append(('█' * max(1, width - gap) if height >= row else ' ' * max(1, width - gap)) + (' ' if gap and index < count - 1 else ''),
                               style='red' if row > rows * .8 else 'yellow' if row > rows * .55 else 'green')
             output.append('\n')
         if width < 4:

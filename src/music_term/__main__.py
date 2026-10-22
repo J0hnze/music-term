@@ -9,7 +9,16 @@ def main() -> None:
     parser.add_argument('--artwork', choices=('auto', 'blocks', 'sixel', 'kitty'),
                         default=os.environ.get('MUSIC_TERM_ARTWORK', 'auto'),
                         help='Album art renderer: detect graphics support, portable blocks, Sixel or Kitty')
+    parser.add_argument('--debug', '--deugb', action='store_true', help='Save diagnostic log under tmp/')
+    parser.add_argument('--test-artwork', action='store_true', help='Display a standalone Sixel colour test and exit')
     args = parser.parse_args()
+    if args.debug or os.environ.get('MUSIC_TERM_DEBUG') == '1':
+        from .diagnostics import configure
+        print(f'Debug log: {configure()}', flush=True)
+    if args.test_artwork:
+        from .artwork import test_sixel
+        test_sixel()
+        return
     if args.check:
         missing = dependencies()
         print("Missing: " + ", ".join(missing) + ". Install: sudo apt install mpv ffmpeg" if missing else "mpv and FFmpeg available")

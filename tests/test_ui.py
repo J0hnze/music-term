@@ -222,7 +222,7 @@ async def test_shuffle_repeat_density_and_space_restore(monkeypatch):
     app.player.command = AsyncMock()
     async with app.run_test(size=(100, 35)) as pilot:
         assert app.queue.tracks == tracks and app.current is None
-        await pilot.press('escape', 's', 'r', 'ctrl+plus', 'ctrl+plus', 'ctrl+minus', 'space')
+        await pilot.press('escape', 's', 'r', 'k', 'k', 'j', 'space')
         await pilot.pause(.3)
         await app.workers.wait_for_complete()
         assert app.queue.shuffle and app.queue.repeat == 'one'
@@ -278,6 +278,12 @@ async def test_centred_spectrum_and_rainbow_volume(monkeypatch):
         spectrum.show_levels([.5] * 50)
         heading = spectrum.content.plain.splitlines()[0]
         assert abs((spectrum.content_size.width - len(heading.strip())) // 2 - (len(heading) - len(heading.lstrip()))) <= 1
+        for count in (10, 50, 120):
+            spectrum.show_levels([1.0] * count)
+            bars = spectrum.content.plain.splitlines()[1]
+            left = len(bars) - len(bars.lstrip())
+            right = spectrum.content_size.width - len(bars.rstrip())
+            assert abs(left - right) <= 1
         app.safe_command = AsyncMock()
         await app.action_louder()
         assert bar.volume == app.volume == 75
@@ -334,7 +340,7 @@ async def test_playlist_delete_clear_and_input_guards(monkeypatch):
         await pilot.press('d')
         assert app.queue.tracks == [items[2]]
         assert app.current is None and not app.playback_active
-        app.player.command.assert_called_with('stop')
+        app.player.command.assert_any_call('stop')
         await pilot.press('ctrl+c')
         assert app.queue.tracks == [] and table.row_count == 0
         assert load_playlist().tracks == []

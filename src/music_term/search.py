@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 from urllib.parse import urlparse
 from ytmusicapi import YTMusic
 from yt_dlp import YoutubeDL
@@ -15,9 +16,9 @@ def largest_thumbnail(thumbnails: list[dict]) -> str | None:
 
 
 class QuietLogger:
-    def debug(self, message: str) -> None: pass
-    def warning(self, message: str) -> None: pass
-    def error(self, message: str) -> None: pass
+    def debug(self, message: str) -> None: logging.getLogger(__name__).debug('yt-dlp: %s', message)
+    def warning(self, message: str) -> None: logging.getLogger(__name__).warning('yt-dlp: %s', message)
+    def error(self, message: str) -> None: logging.getLogger(__name__).error('yt-dlp: %s', message)
 
 class MusicService:
     def __init__(self, credentials: Credentials):
@@ -76,6 +77,7 @@ class MusicService:
             raise RuntimeError("Album could not be loaded. Check network/session; some tracks may be unavailable.") from None
 
     def resolve(self, track: Track) -> tuple[str, dict[str, str]]:
+        logging.getLogger(__name__).info('Resolving stream (local=%s, authenticated=%s)', Path(track.source).is_file(), bool(self.credentials.path('cookies')))
         if Path(track.source).is_file():
             return track.source, {}
         if not urlparse(track.source).scheme:
@@ -93,4 +95,5 @@ class MusicService:
                     raise ValueError()
                 return info["url"], info.get("http_headers", {})
         except Exception:
+            logging.getLogger(__name__).exception('Stream resolution failed')
             raise RuntimeError("Stream resolution failed. Check network, update yt-dlp, or try a public track/local file. Some YouTube streams need a JS runtime; see README.") from None
