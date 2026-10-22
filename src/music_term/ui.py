@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import logging
 from pathlib import Path
 from textual import work, events
 from textual.app import App, ComposeResult
@@ -294,6 +295,7 @@ class MusicApp(App):
             self.playback_active and not self.playback_paused and not self.loading)
 
     def status(self, message: str) -> None:
+        logging.getLogger(__name__).info('Status: %s', message)
         self.query_one("#status", Static).update(message)
 
     def on_key(self, event) -> None:
@@ -688,6 +690,13 @@ class MusicApp(App):
                 elif event.get("reason") == "error":
                     self.playback_active = False
                     self.status("Playback failed. Check audio device/network, refresh your session, or try a local file.")
+            elif event.get('event') == 'file-loaded' and logging.getLogger('music_term').isEnabledFor(logging.DEBUG):
+                for name in ('current-ao', 'audio-device', 'volume', 'mute', 'pause', 'audio-out-params'):
+                    try:
+                        value = await self.player.command('get_property', name)
+                        logging.getLogger(__name__).info('Playback %s: %s', name, value)
+                    except RuntimeError:
+                        logging.getLogger(__name__).info('Playback %s: unavailable', name)
         try:
             async def optional_property(name: str):
                 try:

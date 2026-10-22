@@ -22,6 +22,7 @@ async def test_native_named_pipe_ipc_and_errors():
     try:
         await player.start()
         assert 'mpv' in await player.command('get_property', 'mpv-version')
+        assert await player.command('get_property', 'pid') == player.process.pid
         await player.command('set_property', 'volume', 35)
         assert await player.command('get_property', 'volume') == 35
         with pytest.raises(RuntimeError, match='rejected'):

@@ -1,10 +1,19 @@
 """Native Windows mpv playback over asynchronous named-pipe IPC."""
 import asyncio
 import uuid
+from pathlib import Path
 from .mpv_player import Player as MpvPlayer, dependencies
 
 
 class Player(MpvPlayer):
+    def executable(self) -> str | None:
+        executable = super().executable()
+        if executable and Path(executable).suffix.lower() == '.com':
+            native = Path(executable).with_suffix('.exe')
+            if native.is_file():
+                return str(native)
+        return executable
+
     def prepare_endpoint(self) -> str:
         self.pipe_name = '\\\\.\\pipe\\music-term-' + uuid.uuid4().hex
         return self.pipe_name

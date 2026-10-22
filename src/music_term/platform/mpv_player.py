@@ -12,6 +12,9 @@ def dependencies() -> list[str]:
     return [name for name in ("mpv", "ffmpeg") if shutil.which(name) is None]
 
 class Player:
+    def executable(self) -> str | None:
+        return shutil.which('mpv')
+
     def audio_options(self) -> list[str]:
         return []
 
@@ -42,7 +45,7 @@ class Player:
         endpoint = self.prepare_endpoint()
 
         command = [
-            shutil.which('mpv'), "--no-config", "--idle=yes", "--no-video", "--ytdl=no",
+            self.executable(), "--no-config", "--idle=yes", "--no-video", "--ytdl=no",
             "--volume=70", "--volume-max=100", f"--input-ipc-server={endpoint}",
         ]
         command.extend(self.audio_options())
@@ -107,6 +110,11 @@ class Player:
         await self.command("set_property", "pause", False)
 
     async def close(self) -> None:
+        if self.writer and self.process and self.process.returncode is None:
+            try:
+                await self.command('quit')
+            except RuntimeError:
+                pass
         if self.writer:
             self.writer.close()
             try:
